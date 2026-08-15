@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "Blocking coverage thresholds for the prototype CI pipeline.",
+  "thresholds": {
+    "lines": 100,
+    "branches": 100,
+    "functions": 100,
+    "statements": 100
+  },
+  "enforcement": {
+    "command": "npx jest --coverage",
+    "blockPRCreation": true,
+    "blockTaskCompletion": true,
+    "description": "Tests and deployment must stop when any configured coverage threshold is not met."
+  }
+}

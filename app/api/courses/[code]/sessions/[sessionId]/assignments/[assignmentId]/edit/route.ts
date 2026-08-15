@@ -1,0 +1,156 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/auth';
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ code: string; sessionId: string; assignmentId: string }> }
+) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const resolvedParams = await params;
+    const assignmentId = parseInt(resolvedParams.assignmentId);
+    if (isNaN(assignmentId)) {
+      return NextResponse.json({ error: 'Invalid assignment ID' }, { status: 400 });
+    }
+
+    const body = await request.json();
+    const {
+      title,
+      description,
+      instructions,
+      assignment_type_id,
+      total_points,
+      due_date,
+      time_limit,
+      attempts_allowed,
+      show_results,
+      is_published,
+      questions,
+    } = body;
+
+    const existingAssignment = await prisma.assignments.findUnique({
+      where: { id: assignmentId },
+      include: {
+        assignment_questions: {
+          include: {
+            assignment_question_options: true,
+          },
+        },
+        assignment_submissions: true,
+      },
+    });
+
+    if (!existingAssignment) {
+      return NextResponse.json({ error: 'Assignment not found' }, { status: 404 });
+    }
+
+    if (existingAssignment.created_by !== parseInt(session.user.id)) {
+      return NextResponse.json({ error: 'Forbidden: You can only edit assignments you created' }, { status: 403 });
+    }
+
+    const hasSubmissions = existingAssignment.assignment_submissions.length > 0;
+
+    if (hasSubmissions) {
+      const updatedAssignment = await prisma.assignments.update({
+        where: { id: assignmentId },
+        data: {
+          title,
+          description: description || null,
+          instructions: instructions || null,
+          due_date: due_date ? new Date(due_date) : null,
+          show_results: Boolean(show_results),
+          is_published: Boolean(is_published),
+          updated_date: new Date(),
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: updatedAssignment,
+        message: 'Assignment updated successfully (limited fields due to existing submissions)',
+        warning: 'Some fields cannot be modified because students have already submitted responses.',
+      });
+    }
+
+    const result = await prisma.$transaction(async tx => {
+      const updatedAssignment = await tx.assignments.update({
+        where: { id: assignmentId },
+        data: {
+          title,
+          description: description || null,
+          instructions: instructions || null,
+          assignment_type_id: parseInt(assignment_type_id),
+          total_points: parseInt(total_points),
+          due_date: due_date ? new Date(due_date) : null,
+          time_limit: time_limit ? parseInt(time_limit) : null,
+          attempts_allowed: parseInt(attempts_allowed),
+          show_results: Boolean(show_results),
+          is_published: Boolean(is_published),
+          updated_date: new Date(),
+        },
+      });
+
+      await tx.assignment_question_options.deleteMany({
+        where: {
+          assignment_questions: {
+            assignment_id: assignmentId,
+          },
+        },
+      });
+
+      await tx.assignment_questions.deleteMany({
+        where: { assignment_id: assignmentId },
+      });
+
+      for (const [index, question] of questions.entries()) {
+        const createdQuestion = await tx.assignment_questions.create({
+          data: {
+            assignment_id: assignmentId,
+            question_type_id: parseInt(question.question_type_id),
+            question_text: question.question_text,
+            points: parseInt(question.points),
+            order_number: question.order_number || index + 1,
+            required: Boolean(question.required),
+          },
+        });
+
+        if (question.options && question.options.length > 0) {
+          for (const option of question.options) {
+            await tx.assignment_question_options.create({
+              data: {
+                question_id: createdQuestion.id,
+                option_text: option.option_text,
+                is_correct: Boolean(option.is_correct),
+                order_number: parseInt(option.order_number),
+              },
+            });
+          }
+        }
+      }
+
+      return updatedAssignment;
+    });
+
+    return NextResponse.json({
+      success: true,
+      data: result,
+      message: 'Assignment updated successfully',
+    });
+  } catch (error) {
+    console.error('Error updating assignment:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to update assignment',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    );
+  }
+}

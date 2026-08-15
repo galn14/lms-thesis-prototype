@@ -1,0 +1,537 @@
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../lib/generated/prisma" // commented because causing build issues on Vercel or windows os
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model admin_details {
+  id           Int       @id @default(autoincrement())
+  user_id      Int       @unique
+  kode_admin   String    @unique @db.VarChar(100)
+  nip          String?   @db.VarChar(100)
+  created_date DateTime  @default(now())
+  created_by   Int?
+  updated_date DateTime?
+  updated_by   Int?
+  app_user     app_user  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model app_user {
+  id                                                                 Int                      @id @default(autoincrement())
+  email                                                              String                   @unique @db.VarChar(100)
+  password                                                           String                   @db.VarChar(255)
+  user_name                                                          String                   @unique @db.VarChar(50)
+  nama_lengkap                                                       String                   @db.VarChar(255)
+  tanggal_lahir                                                      DateTime?
+  last_login                                                         DateTime?
+  profile_picture_url                                                String?                  @db.VarChar(255)
+  is_active                                                          Boolean                  @default(true)
+  is_deleted                                                         Boolean                  @default(false)
+  deleted_at                                                         DateTime?
+  deleted_by                                                         Int?
+  created_date                                                       DateTime                 @default(now())
+  created_by                                                         Int?
+  updated_date                                                       DateTime?
+  updated_by                                                         Int?
+  admin_details                                                      admin_details?
+  announcements                                                      announcements[]
+  app_user_role                                                      app_user_role[]
+  assignment_submissions_assignment_submissions_graded_byToapp_user  assignment_submissions[] @relation("assignment_submissions_graded_byToapp_user")
+  assignment_submissions_assignment_submissions_student_idToapp_user assignment_submissions[] @relation("assignment_submissions_student_idToapp_user")
+  assignments_assignments_created_byToapp_user                       assignments[]            @relation("assignments_created_byToapp_user")
+  assignments_assignments_updated_byToapp_user                       assignments[]            @relation("assignments_updated_byToapp_user")
+  attendance_attendance_recorded_byToapp_user                        attendance[]             @relation("attendance_recorded_byToapp_user")
+  attendance_attendance_student_idToapp_user                         attendance[]             @relation("attendance_student_idToapp_user")
+  class_courses                                                      class_courses[]
+  classes                                                            classes[]
+  enrollments                                                        enrollments[]
+  forum_attachments                                                  forum_attachments[]
+  forum_posts                                                        forum_posts[]
+  forum_replies                                                      forum_replies[]
+  forums                                                             forums[]
+  notifications                                                      notifications[]
+  resources                                                          resources[]
+  student_details                                                    student_details?
+  teacher_details                                                    teacher_details?
+  user_profile                                                       user_profile?
+}
+
+model app_user_role {
+  id           Int         @id @default(autoincrement())
+  role_id      Int
+  user_id      Int
+  is_active    Boolean     @default(true)
+  created_date DateTime    @default(now())
+  created_by   Int?
+  updated_date DateTime?
+  updated_by   Int?
+  enumeration  enumeration @relation(fields: [role_id], references: [id])
+  app_user     app_user    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model enumeration {
+  id                     Int                      @id @default(autoincrement())
+  name                   String                   @db.VarChar(100)
+  alt_name               String?                  @db.VarChar(100)
+  is_active              Boolean                  @default(true)
+  is_default             Boolean                  @default(false)
+  category               String                   @db.VarChar(100)
+  created_by             Int?
+  app_user_role          app_user_role[]
+  assignment_questions   assignment_questions[]
+  assignment_submissions assignment_submissions[]
+  assignments            assignments[]
+
+  @@unique([name, category])
+}
+
+model student_details {
+  id             Int       @id @default(autoincrement())
+  user_id        Int       @unique
+  nis            String    @unique @db.VarChar(100)
+  nisn           String?   @db.VarChar(100)
+  parent_contact String?   @db.VarChar(100)
+  created_date   DateTime  @default(now())
+  created_by     Int?
+  updated_date   DateTime?
+  updated_by     Int?
+  app_user       app_user  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+model teacher_details {
+  id           Int       @id @default(autoincrement())
+  user_id      Int       @unique
+  kode_guru    String    @unique @db.VarChar(100)
+  niy          String?   @db.VarChar(100)
+  created_date DateTime  @default(now())
+  created_by   Int?
+  updated_date DateTime?
+  updated_by   Int?
+  app_user     app_user  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model user_profile {
+  id           Int       @id @default(autoincrement())
+  user_id      Int       @unique
+  tmp_lahir    String?   @db.VarChar(100)
+  tgl_lahir    DateTime?
+  gender       String?   @db.VarChar(10)
+  telepon      String?   @db.VarChar(20)
+  alamat       String?   @db.VarChar(200)
+  agama        String?   @db.VarChar(30)
+  created_date DateTime  @default(now())
+  created_by   Int?
+  updated_date DateTime?
+  updated_by   Int?
+  app_user     app_user  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model academic_years {
+  id         Int       @id @default(autoincrement())
+  year_name  String    @unique @db.VarChar(100)
+  start_date DateTime  @db.Date
+  end_date   DateTime  @db.Date
+  is_active  Boolean?  @default(false)
+  created_by Int?
+  updated_by Int?
+  created_at DateTime? @default(now())
+  updated_at DateTime? @default(now())
+  classes    classes[]
+
+  @@index([is_active], map: "idx_academic_years_active")
+  @@index([start_date, end_date], map: "idx_academic_years_dates")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model announcements {
+  id          Int       @id @default(autoincrement())
+  author_id   Int?
+  title       String    @db.VarChar(100)
+  content     String
+  target_type String    @db.VarChar(20)
+  target_id   Int?
+  start_date  DateTime
+  end_date    DateTime?
+  created_at  DateTime? @default(now())
+  app_user    app_user? @relation(fields: [author_id], references: [id], onUpdate: NoAction)
+
+  @@index([target_type, target_id], map: "idx_announcements_active")
+  @@index([author_id], map: "idx_announcements_author")
+  @@index([start_date, end_date], map: "idx_announcements_dates")
+  @@index([target_type, target_id], map: "idx_announcements_target")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model attendance {
+  id                                        Int       @id @default(autoincrement())
+  session_id                                Int?
+  student_id                                Int?
+  status                                    String    @db.VarChar(20)
+  recorded_by                               Int?
+  notes                                     String?
+  recorded_at                               DateTime? @default(now())
+  app_user_attendance_recorded_byToapp_user app_user? @relation("attendance_recorded_byToapp_user", fields: [recorded_by], references: [id], onUpdate: NoAction)
+  sessions                                  sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user_attendance_student_idToapp_user  app_user? @relation("attendance_student_idToapp_user", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([session_id, student_id])
+  @@index([recorded_at], map: "idx_attendance_date")
+  @@index([session_id, status, recorded_at], map: "idx_attendance_reporting")
+  @@index([session_id], map: "idx_attendance_session")
+  @@index([status], map: "idx_attendance_status")
+  @@index([student_id], map: "idx_attendance_student")
+}
+
+model class_courses {
+  id          Int           @id @default(autoincrement())
+  class_id    Int?
+  course_id   Int?
+  teacher_id  Int?
+  start_date  DateTime      @db.Date
+  end_date    DateTime      @db.Date
+  is_active   Boolean?      @default(true)
+  syllabus    String?
+  classes     classes?      @relation(fields: [class_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  courses     courses?      @relation(fields: [course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user    app_user?     @relation(fields: [teacher_id], references: [id], onUpdate: NoAction)
+  enrollments enrollments[]
+  sessions    sessions[]
+
+  @@unique([class_id, course_id])
+  @@index([is_active], map: "idx_class_courses_active")
+  @@index([class_id], map: "idx_class_courses_class")
+  @@index([course_id], map: "idx_class_courses_course")
+  @@index([start_date, end_date], map: "idx_class_courses_dates")
+  @@index([teacher_id], map: "idx_class_courses_teacher")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model classes {
+  id             Int             @id @default(autoincrement())
+  class_name     String          @db.VarChar(100)
+  grade_level    String          @db.VarChar(100)
+  year_id        Int?
+  wali_kelas     Int?
+  created_by     Int?
+  updated_by     Int?
+  created_at     DateTime?       @default(now())
+  updated_at     DateTime?       @default(now())
+  class_courses  class_courses[]
+  app_user       app_user?       @relation(fields: [wali_kelas], references: [id], onUpdate: NoAction)
+  academic_years academic_years? @relation(fields: [year_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([class_name, year_id])
+  @@index([grade_level, year_id], map: "idx_classes_grade")
+  @@index([wali_kelas], map: "idx_classes_wali_kelas")
+  @@index([year_id], map: "idx_classes_year")
+}
+
+model courses {
+  id            Int             @id @default(autoincrement())
+  course_code   String          @unique @db.VarChar(50)
+  course_name   String          @db.VarChar(50)
+  description   String?
+  created_by    Int?
+  updated_by    Int?
+  created_at    DateTime?       @default(now())
+  updated_at    DateTime?       @default(now())
+  class_courses class_courses[]
+
+  @@index([course_name], map: "idx_courses_name")
+}
+
+model enrollments {
+  id              Int            @id @default(autoincrement())
+  class_course_id Int?
+  student_id      Int?
+  roll_number     Int?
+  enrollment_date DateTime?      @default(dbgenerated("CURRENT_DATE")) @db.Date
+  class_courses   class_courses? @relation(fields: [class_course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user        app_user?      @relation(fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([class_course_id, student_id])
+  @@index([class_course_id], map: "idx_enrollments_class_course")
+  @@index([enrollment_date], map: "idx_enrollments_date")
+  @@index([student_id], map: "idx_enrollments_student")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model forum_attachments {
+  id            Int            @id @default(autoincrement())
+  post_id       Int?
+  reply_id      Int?
+  uploader_id   Int?
+  file_url      String         @db.VarChar(255)
+  file_name     String         @db.VarChar(100)
+  file_size     Int
+  uploaded_at   DateTime?      @default(now())
+  forum_posts   forum_posts?   @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  forum_replies forum_replies? @relation(fields: [reply_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user      app_user?      @relation(fields: [uploader_id], references: [id], onUpdate: NoAction)
+
+  @@index([uploader_id], map: "idx_forum_attachments_uploader")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model forum_posts {
+  id                Int                 @id @default(autoincrement())
+  forum_id          Int?
+  user_id           Int?
+  title             String              @db.VarChar(100)
+  content           String
+  content_type      String?             @default("plaintext") @db.VarChar(100)
+  is_deleted        Boolean?            @default(false)
+  created_at        DateTime?           @default(now())
+  updated_at        DateTime?           @default(now())
+  forum_attachments forum_attachments[]
+  forums            forums?             @relation(fields: [forum_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user          app_user?           @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  forum_replies     forum_replies[]
+
+  @@index([created_at], map: "idx_forum_posts_created")
+  @@index([is_deleted], map: "idx_forum_posts_deleted")
+  @@index([forum_id], map: "idx_forum_posts_forum")
+  @@index([user_id], map: "idx_forum_posts_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model forum_replies {
+  id                  Int                 @id @default(autoincrement())
+  post_id             Int?
+  user_id             Int?
+  parent_reply_id     Int?
+  content             String
+  content_type        String?             @default("plaintext") @db.VarChar(100)
+  is_deleted          Boolean?            @default(false)
+  created_at          DateTime?           @default(now())
+  updated_at          DateTime?           @default(now())
+  forum_attachments   forum_attachments[]
+  forum_replies       forum_replies?      @relation("forum_repliesToforum_replies", fields: [parent_reply_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  other_forum_replies forum_replies[]     @relation("forum_repliesToforum_replies")
+  forum_posts         forum_posts?        @relation(fields: [post_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user            app_user?           @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_forum_replies_created")
+  @@index([is_deleted], map: "idx_forum_replies_deleted")
+  @@index([parent_reply_id], map: "idx_forum_replies_parent")
+  @@index([post_id], map: "idx_forum_replies_post")
+  @@index([user_id], map: "idx_forum_replies_user")
+}
+
+model forums {
+  id          Int           @id @default(autoincrement())
+  session_id  Int?          @unique
+  title       String        @db.VarChar(100)
+  created_at  DateTime?     @default(now())
+  creator_id  Int?
+  description String?
+  forum_posts forum_posts[]
+  app_user    app_user?     @relation(fields: [creator_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  sessions    sessions?     @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([id, session_id, creator_id, title, created_at], map: "forums_id_idx")
+  @@index([creator_id], map: "idx_forums_creator")
+  @@index([session_id], map: "idx_forums_session")
+}
+
+model materials {
+  id             Int       @id @default(autoincrement())
+  session_id     Int?
+  title          String    @db.VarChar(100)
+  content        String?
+  material_order Int
+  created_at     DateTime? @default(now())
+  sessions       sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([material_order], map: "idx_materials_order")
+  @@index([session_id], map: "idx_materials_session")
+}
+
+model notifications {
+  id                  Int       @id @default(autoincrement())
+  user_id             Int?
+  title               String    @db.VarChar(100)
+  message             String
+  is_read             Boolean?  @default(false)
+  notification_type   String    @db.VarChar(50)
+  related_entity_type String?   @db.VarChar(50)
+  related_entity_id   Int?
+  created_at          DateTime? @default(now())
+  read_at             DateTime?
+  app_user            app_user? @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_notifications_created")
+  @@index([related_entity_type, related_entity_id], map: "idx_notifications_entity")
+  @@index([notification_type], map: "idx_notifications_type")
+  @@index([user_id], map: "idx_notifications_user")
+}
+
+model resources {
+  id              Int       @id @default(autoincrement())
+  session_id      Int?
+  uploader_id     Int?
+  file_url        String    @db.VarChar(255)
+  file_name       String    @db.VarChar(100)
+  file_size       Int
+  file_type       String    @db.VarChar(50)
+  content_type    String?   @db.VarChar(100)
+  version         Int?      @default(1)
+  is_public       Boolean?  @default(false)
+  download_count  Int?      @default(0)
+  last_downloaded DateTime?
+  checksum        String?   @db.VarChar(64)
+  file_tittle     String?   @db.VarChar
+  sessions        sessions? @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user        app_user? @relation(fields: [uploader_id], references: [id], onUpdate: NoAction)
+
+  @@index([file_type], map: "idx_resources_file_type")
+  @@index([session_id], map: "idx_resources_session")
+  @@index([uploader_id], map: "idx_resources_uploader")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model sessions {
+  id              Int            @id @default(autoincrement())
+  class_course_id Int?
+  title           String         @db.VarChar(100)
+  description     String?
+  session_number  Int
+  start_time      DateTime
+  end_time        DateTime
+  is_completed    Boolean?       @default(false)
+  completed_at    DateTime?
+  assignments     assignments[]
+  attendance      attendance[]
+  forums          forums?
+  materials       materials[]
+  resources       resources[]
+  class_courses   class_courses? @relation(fields: [class_course_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([class_course_id], map: "idx_sessions_class_course")
+  @@index([is_completed], map: "idx_sessions_completed")
+  @@index([session_number], map: "idx_sessions_number")
+  @@index([start_time, end_time], map: "idx_sessions_time")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assignment_answers {
+  id                          Int                          @id @default(autoincrement())
+  submission_id               Int
+  question_id                 Int
+  answer_text                 String?
+  selected_option_id          Int?
+  points_earned               Decimal?                     @default(0) @db.Decimal(5, 2)
+  feedback                    String?
+  created_date                DateTime?                    @default(now()) @db.Timestamp(3)
+  updated_date                DateTime?                    @db.Timestamp(3)
+  assignment_questions        assignment_questions         @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  assignment_question_options assignment_question_options? @relation(fields: [selected_option_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  assignment_submissions      assignment_submissions       @relation(fields: [submission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([submission_id, question_id])
+  @@index([selected_option_id], map: "idx_assignment_answers_option")
+  @@index([question_id], map: "idx_assignment_answers_question")
+  @@index([submission_id], map: "idx_assignment_answers_submission")
+}
+
+model assignment_question_options {
+  id                   Int                  @id @default(autoincrement())
+  question_id          Int
+  option_text          String
+  is_correct           Boolean?             @default(false)
+  order_number         Int
+  created_date         DateTime?            @default(now()) @db.Timestamp(3)
+  assignment_answers   assignment_answers[]
+  assignment_questions assignment_questions @relation(fields: [question_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([is_correct], map: "idx_assignment_question_options_correct")
+  @@index([question_id], map: "idx_assignment_question_options_question")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assignment_questions {
+  id                          Int                           @id @default(autoincrement())
+  assignment_id               Int
+  question_type_id            Int
+  question_text               String
+  points                      Int?                          @default(1)
+  order_number                Int
+  required                    Boolean?                      @default(true)
+  created_date                DateTime?                     @default(now()) @db.Timestamp(3)
+  updated_date                DateTime?                     @db.Timestamp(3)
+  assignment_answers          assignment_answers[]
+  assignment_question_options assignment_question_options[]
+  assignments                 assignments                   @relation(fields: [assignment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  enumeration                 enumeration                   @relation(fields: [question_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([assignment_id, order_number], map: "idx_assignment_questions_assignment")
+  @@index([question_type_id], map: "idx_assignment_questions_type")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assignment_submissions {
+  id                                                   Int                  @id @default(autoincrement())
+  assignment_id                                        Int
+  student_id                                           Int
+  attempt_number                                       Int?                 @default(1)
+  started_at                                           DateTime?            @default(now()) @db.Timestamp(3)
+  submitted_at                                         DateTime?            @db.Timestamp(3)
+  status_id                                            Int
+  total_score                                          Decimal?             @db.Decimal(5, 2)
+  feedback                                             String?
+  graded_by                                            Int?
+  graded_at                                            DateTime?            @db.Timestamp(3)
+  created_date                                         DateTime?            @default(now()) @db.Timestamp(3)
+  updated_date                                         DateTime?            @db.Timestamp(3)
+  assignment_answers                                   assignment_answers[]
+  assignments                                          assignments          @relation(fields: [assignment_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user_assignment_submissions_graded_byToapp_user  app_user?            @relation("assignment_submissions_graded_byToapp_user", fields: [graded_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  enumeration                                          enumeration          @relation(fields: [status_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  app_user_assignment_submissions_student_idToapp_user app_user             @relation("assignment_submissions_student_idToapp_user", fields: [student_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([assignment_id, student_id, attempt_number])
+  @@index([assignment_id], map: "idx_assignment_submissions_assignment")
+  @@index([graded_by], map: "idx_assignment_submissions_graded_by")
+  @@index([status_id], map: "idx_assignment_submissions_status")
+  @@index([student_id], map: "idx_assignment_submissions_student")
+  @@index([submitted_at], map: "idx_assignment_submissions_submitted")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model assignments {
+  id                                        Int                      @id @default(autoincrement())
+  session_id                                Int
+  assignment_type_id                        Int
+  title                                     String                   @db.VarChar(200)
+  description                               String?
+  instructions                              String?
+  total_points                              Int?                     @default(100)
+  due_date                                  DateTime?                @db.Timestamp(3)
+  start_date                                DateTime?                @default(now()) @db.Timestamp(3)
+  time_limit                                Int?
+  attempts_allowed                          Int?                     @default(1)
+  show_results                              Boolean?                 @default(true)
+  is_published                              Boolean?                 @default(false)
+  created_by                                Int
+  created_date                              DateTime?                @default(now()) @db.Timestamp(3)
+  updated_date                              DateTime?                @db.Timestamp(3)
+  updated_by                                Int?
+  assignment_questions                      assignment_questions[]
+  assignment_submissions                    assignment_submissions[]
+  enumeration                               enumeration              @relation(fields: [assignment_type_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  app_user_assignments_created_byToapp_user app_user                 @relation("assignments_created_byToapp_user", fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  sessions                                  sessions                 @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  app_user_assignments_updated_byToapp_user app_user?                @relation("assignments_updated_byToapp_user", fields: [updated_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([created_by], map: "idx_assignments_created_by")
+  @@index([due_date], map: "idx_assignments_due_date")
+  @@index([is_published], map: "idx_assignments_published")
+  @@index([session_id], map: "idx_assignments_session")
+  @@index([assignment_type_id], map: "idx_assignments_type")
+}

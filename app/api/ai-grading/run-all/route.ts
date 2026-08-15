@@ -1,0 +1,121 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/auth';
+import { prisma } from '@/lib/prisma';
+import {
+  createGradingJob,
+  getAcsAssignmentByAssignmentId,
+  updateGradingJobStatus,
+} from '@/lib/db2/acs-repo';
+import { gradeStudentAnswer } from '@/lib/grading-service';
+import { getOpenAI } from '@/lib/openai';
+import { canUseFeature } from '@/lib/feature-access';
+import { isAiInstructorRole } from '@/lib/auth/ai-role';
+
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+
+    if (!isAiInstructorRole(session.user.role)) {
+      return NextResponse.json(
+        { success: false, error: 'Forbidden: Teachers only' },
+        { status: 403 }
+      );
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = (await request.json()) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { success: false, error: 'Invalid JSON body' },
+        { status: 400 }
+      );
+    }
+    const { assignmentId } = body as { assignmentId: string };
+
+    // 1. Fetch ACS Config
+    const acsData = await getAcsAssignmentByAssignmentId(assignmentId);
+
+    if (!acsData) return NextResponse.json({ success: false, error: 'ACS Config not found' }, { status: 404 });
+
+    // 1b. Enforce feature access (the course must be enabled)
+    const access = await canUseFeature(acsData.course_id, 'ai_grading');
+    if (!access.allowed) {
+      return NextResponse.json({ success: false, error: access.reason }, { status: 403 });
+    }
+
+    // 2. Fetch All Student Submissions from LMS DB
+    const submissions = await prisma.assignment_submissions.findMany({
+      where: { assignment_id: parseInt(assignmentId) },
+      include: {
+        assignment_answers: true
+      }
+    });
+
+    if (submissions.length === 0) {
+         return NextResponse.json({ success: false, message: 'No submissions found to grade' });
+    }
+
+    // 3. Create Job Record
+    const jobData = await createGradingJob({
+      assignment_id: assignmentId,
+      total_students: submissions.length,
+      status: 'running',
+    });
+
+    // 4. Start Background Processing (Fire and Forget or Queue)
+    (async () => {
+        try {
+            const rawRubric = acsData.rubric;
+
+            for (const sub of submissions) {
+                for (const ans of sub.assignment_answers) {
+                     let questionRubric: any = null;
+                     if (Array.isArray(rawRubric)) {
+                        // Use == (loose) to handle number/string mismatch from JSONB vs DB
+                        questionRubric = rawRubric.find((r: any) => r.questionId == ans.question_id) ?? null;
+                     } else if (rawRubric) {
+                        questionRubric = rawRubric;
+                     }
+
+                     if (!questionRubric || !ans.answer_text) continue;
+
+                     await gradeStudentAnswer({
+                         assignmentId,
+                         studentId: sub.student_id.toString(),
+                         questionId: ans.question_id.toString(),
+                         studentAnswer: ans.answer_text,
+                         rubric: questionRubric,
+                         vectorStoreId: acsData.vector_store_id,
+                         jobId: jobData.id,
+                         teacherId: session.user.id,
+                         teacherName: session.user.name ?? undefined,
+                     });
+                }
+            }
+            await updateGradingJobStatus(jobData.id, 'completed', new Date().toISOString());
+
+        } catch (err) {
+             console.error('Background grading failed:', err);
+             await updateGradingJobStatus(jobData.id, 'failed');
+        } finally {
+            // Auto-delete VS after grading — it's only needed during grading.
+            // Cleanup/archive route handles file deletion separately.
+            try {
+                const openai = await getOpenAI();
+                await openai.vectorStores.delete(acsData.vector_store_id);
+            } catch (e: any) {
+                if (e.status !== 404) console.warn('Failed to auto-delete VS after grading:', e.message);
+            }
+        }
+    })();
+
+    return NextResponse.json({ success: true, jobId: jobData.id, message: 'Grading started in background', submissions, gradeStudentAnswer });
+
+  } catch (error: any) {
+    console.error('Error in run-all:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
+}
