@@ -23,6 +23,8 @@ import {
   FaExclamationCircle,
   FaHistory,
 } from 'react-icons/fa';
+import { isPublicPrototypeMode } from '@/lib/public-prototype-mode';
+import { prototypeActionState } from '@/components/common/prototype-action-button';
 
 interface PlagiarismModalProps {
   assignment: Assignment;
@@ -94,6 +96,7 @@ function riskLabel(level: string, similarity: number) {
 }
 
 export const PlagiarismModal = ({ assignment, isOpen, onClose, onRunStarted }: PlagiarismModalProps) => {
+  const prototypeMode = isPublicPrototypeMode();
   const [step, setStep] = useState<Step>('confirm');
 
   // Scope selection
@@ -216,6 +219,11 @@ export const PlagiarismModal = ({ assignment, isOpen, onClose, onRunStarted }: P
   };
 
   const startDetection = async () => {
+    if (prototypeMode) {
+      setDetectionError('External processing is disabled in prototype mode. Prepared results remain available.');
+      return;
+    }
+
     if (scanScope === 'specific' && selectedQuestionIds.length === 0) {
       setDetectionError('Please select at least one question to scan.');
       return;
@@ -352,6 +360,13 @@ export const PlagiarismModal = ({ assignment, isOpen, onClose, onRunStarted }: P
   const mediumRiskStudents = results.filter(r => r.medium_risk_count > 0 && r.high_risk_count === 0);
   const cleanStudents = results.filter(r => r.high_risk_count === 0 && r.medium_risk_count === 0);
   const submissionCount = assignment.submissions?.length ?? 0;
+  const plagiarismControl = prototypeActionState(
+    'plagiarism',
+    detecting ||
+      submissionCount < 2 ||
+      essayQuestions.length === 0 ||
+      (scanScope === 'specific' && selectedQuestionIds.length === 0)
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={open => !open && onClose()}>
@@ -558,14 +573,15 @@ export const PlagiarismModal = ({ assignment, isOpen, onClose, onRunStarted }: P
 
             {/* Actions */}
             <div className="flex items-center gap-3 pt-2">
+              {prototypeMode && (
+                <p className="text-sm text-amber-800">
+                  New checks are disabled. Open the prepared results to explore this prototype.
+                </p>
+              )}
               <Button
                 onClick={startDetection}
-                disabled={
-                  detecting ||
-                  submissionCount < 2 ||
-                  essayQuestions.length === 0 ||
-                  (scanScope === 'specific' && selectedQuestionIds.length === 0)
-                }
+                disabled={plagiarismControl.disabled}
+                title={plagiarismControl.title}
                 className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white"
               >
                 {detecting ? <FaSpinner className="animate-spin" size={13} /> : <FaPlay size={13} />}

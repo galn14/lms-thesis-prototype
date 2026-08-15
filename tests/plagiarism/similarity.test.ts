@@ -143,6 +143,7 @@ describe('Similarity Calculations', () => {
     it('should clamp final score to [0, 1]', () => {
       expect(calculateCombinedScore(1.0, 1.0)).toBeLessThanOrEqual(1);
       expect(calculateCombinedScore(0.0, 0.0)).toBeGreaterThanOrEqual(0);
+      expect(calculateCombinedScore(Number.NaN, 0.5)).toBe(0);
     });
   });
 

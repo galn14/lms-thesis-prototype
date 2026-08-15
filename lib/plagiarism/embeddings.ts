@@ -28,7 +28,7 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
   let attempt = 0;
   const openai = await getOpenAI();
 
-  while (attempt < MAX_RETRIES) {
+  while (true) {
     try {
       const cleanText = text.replace(/\n/g, ' ');
 
@@ -49,7 +49,7 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
     } catch (error: any) {
       attempt++;
 
-      if (error?.status === 429 || (error?.status >= 500 && error?.status < 600)) {
+      if (error?.status === 429 || (error?.status >= 500 && error.status < 600)) {
         if (attempt >= MAX_RETRIES) {
           throw new Error(`Failed to generate embedding after ${MAX_RETRIES} attempts: ${error.message}`);
         }
@@ -63,7 +63,6 @@ export async function generateEmbedding(text: string): Promise<EmbeddingResult> 
     }
   }
 
-  throw new Error('Unexpected error in generateEmbedding loop.');
 }
 
 /**
@@ -77,7 +76,7 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<{ vector
   let attempt = 0;
   const openai = await getOpenAI();
 
-  while (attempt < MAX_RETRIES) {
+  while (true) {
     try {
       const cleanTexts = texts.map(t => t.replace(/\n/g, ' '));
 
@@ -100,7 +99,7 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<{ vector
     } catch (error: any) {
       attempt++;
 
-      if (error?.status === 429 || (error?.status >= 500 && error?.status < 600)) {
+      if (error?.status === 429 || (error?.status >= 500 && error.status < 600)) {
         if (attempt >= MAX_RETRIES) {
            throw new Error(`Failed to generate batch embeddings after ${MAX_RETRIES} attempts: ${error.message}`);
         }
@@ -113,7 +112,6 @@ export async function generateEmbeddingsBatch(texts: string[]): Promise<{ vector
       }
     }
   }
-   throw new Error('Unexpected error in generateEmbeddingsBatch loop.');
 }
 
 /**

@@ -2,24 +2,44 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { getToken } from 'next-auth/jwt';
 
+const PUBLIC_STATIC_FILES = new Set([
+  '/favicon.ico',
+  '/file.svg',
+  '/globe.svg',
+  '/next.svg',
+  '/st_louis-2.png',
+  '/vercel.svg',
+  '/window.svg',
+]);
+
+const PUBLIC_STATIC_PREFIXES = ['/_next/', '/images/', '/icons/', '/prototype-assets/'];
+
+function isPublicStaticPath(pathname: string) {
+  return (
+    PUBLIC_STATIC_FILES.has(pathname) ||
+    PUBLIC_STATIC_PREFIXES.some(prefix => pathname.startsWith(prefix))
+  );
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === '/api/cron/reset') {
+    return NextResponse.next();
+  }
+
+  if (
+    pathname === '/api/auth' ||
+    pathname.startsWith('/api/auth/') ||
+    isPublicStaticPath(pathname)
+  ) {
+    return NextResponse.next();
+  }
 
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
   });
-
-  if (
-    pathname.startsWith('/api/auth') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/favicon.ico') ||
-    pathname.startsWith('/images') ||
-    pathname.startsWith('/icons') ||
-    pathname.includes('.')
-  ) {
-    return NextResponse.next();
-  }
 
   const publicRoutes = ['/login', '/auth'];
   const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
@@ -60,7 +80,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    '/((?!api/auth|_next/static|_next/image|favicon.ico|images|icons).*)',
-  ],
+  matcher: ['/:path*'],
 };

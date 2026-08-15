@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { isPublicPrototypeMode } from '@/lib/public-prototype-mode';
+import { PrototypeActionButton } from '@/components/common/prototype-action-button';
 
 interface CredentialInfo {
   configured: boolean;
@@ -10,6 +12,7 @@ interface CredentialInfo {
 }
 
 export default function CredentialsTab() {
+  const prototypeMode = isPublicPrototypeMode();
   const [info, setInfo] = useState<CredentialInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [apiKey, setApiKey] = useState('');
@@ -31,6 +34,7 @@ export default function CredentialsTab() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (prototypeMode) return;
     setSaving(true);
     setMessage(null);
     try {
@@ -55,9 +59,10 @@ export default function CredentialsTab() {
   };
 
   const handleReset = async () => {
+    if (prototypeMode) return;
     if (
       !confirm(
-        'Remove the stored API key? AI features will fall back to the OPENAI_API_KEY environment variable.'
+        'Remove the stored provider credential? The configured server default will be used instead.'
       )
     )
       return;
@@ -82,9 +87,14 @@ export default function CredentialsTab() {
   return (
     <div className="max-w-2xl">
       <p className="text-gray-500 text-sm mb-4">
-        The OpenAI API key used for AI grading and plagiarism detection. Stored encrypted; falls
-        back to the <code>OPENAI_API_KEY</code> environment variable when no key is stored.
+        Provider credentials for external processing.
       </p>
+
+      {prototypeMode && (
+        <div className="mb-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          External providers and credential changes are disabled in prototype mode.
+        </div>
+      )}
 
       {message && (
         <div
@@ -136,6 +146,7 @@ export default function CredentialsTab() {
               onChange={e => setApiKey(e.target.value)}
               placeholder="sk-…"
               autoComplete="off"
+              disabled={prototypeMode}
               className="w-full border border-gray-300 rounded-md px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-gray-400 mt-1">
@@ -143,26 +154,28 @@ export default function CredentialsTab() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <button
+            <PrototypeActionButton
+              prototypeAction="credential"
               type="submit"
               disabled={saving || apiKey.trim().length < 8}
               className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50"
             >
               {saving ? 'Saving…' : 'Update Key'}
-            </button>
-            <button
+            </PrototypeActionButton>
+            <PrototypeActionButton
+              prototypeAction="credential"
               type="button"
               onClick={handleReset}
               disabled={resetting || info?.source !== 'database'}
               title={
                 info?.source === 'database'
-                  ? 'Remove the stored key and use the environment variable'
+                  ? 'Remove the stored credential and use the server default'
                   : 'No stored key to reset'
               }
               className="px-4 py-2 rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {resetting ? 'Resetting…' : 'Reset to environment key'}
-            </button>
+            </PrototypeActionButton>
           </div>
         </form>
       </div>

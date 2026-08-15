@@ -1,29 +1,27 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
+import { requireAdmin } from '@/lib/auth/require-admin';
 import { checkDatabaseHealth } from '@/lib/db-utils';
 
 export async function GET() {
+  const admin = await requireAdmin();
+  if (!admin.ok) return admin.response;
+
   try {
     const health = await checkDatabaseHealth();
 
     if (health.connected) {
-      return NextResponse.json({
-        status: 'success',
-        message: 'Database connection successful',
-        data: health
-      }, { status: 200 });
-    } else {
-      return NextResponse.json({
-        status: 'error',
-        message: 'Database connection failed',
-        error: health.error
-      }, { status: 500 });
+      return NextResponse.json({ status: 'success' }, { status: 200 });
     }
-  } catch (error) {
-    console.error('Database health check error:', error);
-    return NextResponse.json({
-      status: 'error',
-      message: 'Internal server error',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+
+    return NextResponse.json(
+      { status: 'error', message: 'Database unavailable' },
+      { status: 503 }
+    );
+  } catch {
+    console.error('Database health check failed');
+    return NextResponse.json(
+      { status: 'error', message: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

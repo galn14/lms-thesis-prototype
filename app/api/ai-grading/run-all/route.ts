@@ -11,6 +11,7 @@ import { gradeStudentAnswer } from '@/lib/grading-service';
 import { getOpenAI } from '@/lib/openai';
 import { canUseFeature } from '@/lib/feature-access';
 import { isAiInstructorRole } from '@/lib/auth/ai-role';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     let body: Record<string, unknown>;
     try {

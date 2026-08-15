@@ -6,6 +6,8 @@ import { getOpenAI } from '@/lib/openai';
 import { getUploadedFilesByResourceIds } from '@/lib/db2/acs-repo';
 import path from 'path';
 import fs from 'fs';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
+import { isAiInstructorRole } from '@/lib/auth/ai-role';
 
 export interface FileCheckResult {
   resource_id: number;
@@ -34,6 +36,13 @@ export async function POST(request: NextRequest) {
     if (!session?.user?.id) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
+
+    if (!isAiInstructorRole(session.user.role)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     const body = await request.json();
     const { resourceIds } = body;

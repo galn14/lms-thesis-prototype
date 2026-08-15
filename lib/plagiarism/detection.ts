@@ -50,11 +50,11 @@ interface SubmissionData {
   submission_id: string;
   student_id: string;
   content: string;
-  chunks?: ChunkData[];
-  answerTexts?: Map<number, string>;  // question_index → raw answer text for per-Q Jaccard
+  chunks: ChunkData[];
+  answerTexts: Map<number, string>;  // question_index → raw answer text for per-Q Jaccard
 }
 
-interface ProcessingSubmission extends SubmissionData {
+interface ProcessingSubmission extends Omit<SubmissionData, 'answerTexts'> {
   answers: AnswerItem[];
 }
 
@@ -224,7 +224,6 @@ export async function processDetection(
 
     for (const sub of submissions) {
       const questionAnswers = sub.answers;
-      if (questionAnswers.length === 0) continue;
 
       const chunksForDb: {
         submission_id: string;
@@ -242,7 +241,7 @@ export async function processDetection(
       const answerTextsMap = new Map<number, string>();
 
       for (const answer of questionAnswers) {
-        const qIdx = questionOrderMap.get(answer.question_id) ?? 0;
+        const qIdx = questionOrderMap.get(answer.question_id)!;
         answerTextsMap.set(qIdx, answer.text);
 
         const questionChunks = chunkText(answer.text);
@@ -314,14 +313,12 @@ export async function processDetection(
     const corpusStatsPerQuestion = new Map<number, BM25Stats>();
     const allQIndices = new Set<number>();
     for (const sub of processedSubmissions) {
-      if (sub.answerTexts) {
-        for (const qIdx of sub.answerTexts.keys()) allQIndices.add(qIdx);
-      }
+      for (const qIdx of sub.answerTexts.keys()) allQIndices.add(qIdx);
     }
     for (const qi of allQIndices) {
       const textsForQ: string[] = [];
       for (const sub of processedSubmissions) {
-        if (sub.answerTexts?.has(qi)) textsForQ.push(sub.answerTexts.get(qi)!);
+        if (sub.answerTexts.has(qi)) textsForQ.push(sub.answerTexts.get(qi)!);
       }
       corpusStatsPerQuestion.set(qi, calculateBM25CorpusStats(textsForQ));
     }
@@ -430,14 +427,10 @@ function calculatePairRawScores(
   matchesForPair: SimilarChunkMatch[],
   corpusStatsPerQuestion: Map<number, BM25Stats>
 ): PairRawResult {
-  const chunksA = subA.chunks ?? [];
-  const chunksB = subB.chunks ?? [];
+  const chunksA = subA.chunks;
+  const chunksB = subB.chunks;
   const matchedChunksData: any[] = [];
   const perQuestionRaw: PerQuestionRawScore[] = [];
-
-  if (chunksA.length === 0 || chunksB.length === 0) {
-    return { perQuestionRaw: [], matchedChunksData: [] };
-  }
 
   const groupA = new Map<number, ChunkData[]>();
   const groupB = new Map<number, ChunkData[]>();
@@ -495,10 +488,10 @@ function calculatePairRawScores(
 
     const semanticQ = sumBestCosine / Math.max(qChunksA.length, qChunksB.length);
 
-    const textA = subA.answerTexts?.get(qi) ?? '';
-    const textB = subB.answerTexts?.get(qi) ?? '';
-    const stats = corpusStatsPerQuestion.get(qi);
-    const lexicalQ = stats ? calculateBM25Similarity(textA, textB, stats) : 0;
+    const textA = subA.answerTexts.get(qi)!;
+    const textB = subB.answerTexts.get(qi)!;
+    const stats = corpusStatsPerQuestion.get(qi)!;
+    const lexicalQ = calculateBM25Similarity(textA, textB, stats);
 
     perQuestionRaw.push({
       question_index: qi,

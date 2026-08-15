@@ -5,6 +5,8 @@ import { MessageSquare, Reply, Plus, Paperclip, Send, RefreshCw, User } from 'lu
 import { FaChevronDown } from 'react-icons/fa';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { cn } from '@/lib/utils';
+import { isPublicPrototypeMode } from '@/lib/public-prototype-mode';
+import { PrototypeActionButton } from '@/components/common/prototype-action-button';
 
 interface ForumPost {
   id: number;
@@ -224,6 +226,7 @@ const ForumSessionSelector = ({
 };
 
 const Forum = ({ courseCode, sessions }: ForumProps) => {
+  const prototypeMode = isPublicPrototypeMode();
   const { user, isAuthenticated } = useAuth();
   const [posts, setPosts] = useState<ForumPost[]>([]);
   const [selectedPost, setSelectedPost] = useState<ForumPost | null>(null);
@@ -280,6 +283,8 @@ const Forum = ({ courseCode, sessions }: ForumProps) => {
   const uploadFile = async (
     file: File
   ): Promise<{ id: number; file_name: string; file_url: string; file_size: number } | null> => {
+    if (prototypeMode) return null;
+
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -313,6 +318,7 @@ const Forum = ({ courseCode, sessions }: ForumProps) => {
 
   // Handle file selection for posts
   const handlePostFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (prototypeMode) return;
     const files = event.target.files;
     if (files) {
       setPostAttachments(prev => [...prev, ...Array.from(files)]);
@@ -321,6 +327,7 @@ const Forum = ({ courseCode, sessions }: ForumProps) => {
 
   // Handle file selection for replies
   const handleReplyFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (prototypeMode) return;
     const files = event.target.files;
     if (files) {
       setReplyAttachments(prev => [...prev, ...Array.from(files)]);
@@ -648,18 +655,20 @@ const Forum = ({ courseCode, sessions }: ForumProps) => {
                     type="file"
                     ref={postFileInputRef}
                     onChange={handlePostFileSelect}
+                    disabled={prototypeMode}
                     multiple
                     className="hidden"
                     accept="*/*"
                   />
-                  <button
+                  <PrototypeActionButton
+                    prototypeAction="resource-upload"
                     type="button"
                     onClick={() => postFileInputRef.current?.click()}
-                    className="flex items-center gap-2 text-gray-600 hover:text-blue-500"
+                    className="flex items-center gap-2 text-gray-600 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Paperclip size={16} />
                     Attach File
-                  </button>
+                  </PrototypeActionButton>
                   {uploading && <span className="text-sm text-blue-600">Uploading files...</span>}
                 </div>
                 <div className="flex items-center gap-2">
@@ -852,17 +861,19 @@ const Forum = ({ courseCode, sessions }: ForumProps) => {
                       type="file"
                       ref={replyFileInputRef}
                       onChange={handleReplyFileSelect}
+                      disabled={prototypeMode}
                       multiple
                       className="hidden"
                       accept="*/*"
                     />
-                    <button
+                    <PrototypeActionButton
+                      prototypeAction="resource-upload"
                       type="button"
                       onClick={() => replyFileInputRef.current?.click()}
-                      className="text-gray-600 hover:text-blue-500"
+                      className="text-gray-600 hover:text-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Paperclip size={16} />
-                    </button>
+                    </PrototypeActionButton>
                     <textarea
                       value={newReplyContent}
                       onChange={e => setNewReplyContent(e.target.value)}

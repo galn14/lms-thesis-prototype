@@ -104,6 +104,12 @@ describe('generateEmbedding', () => {
       );
       expect(mockCreate).toHaveBeenCalledTimes(1);
   });
+
+  it('should propagate a non-object failure without retrying', async () => {
+      mockCreate.mockRejectedValue(null);
+      await expect(generateEmbedding('bad request')).rejects.toBeNull();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('generateEmbeddingsBatch', () => {
@@ -154,6 +160,48 @@ describe('generateEmbeddingsBatch', () => {
 
         expect(result.vectors[0]).toEqual([0.1]); // Index 0
         expect(result.vectors[1]).toEqual([0.2]); // Index 1
+    });
+
+    it('should normalize newlines and retry retryable batch errors', async () => {
+        const successResponse = {
+            data: [{ embedding: [0.1], index: 0 }],
+            usage: { total_tokens: 7 },
+        };
+        mockCreate
+            .mockRejectedValueOnce({ status: 503, message: 'Unavailable' })
+            .mockResolvedValueOnce(successResponse);
+
+        const promise = generateEmbeddingsBatch(['line one\nline two']);
+        await jest.advanceTimersByTimeAsync(1000);
+        await expect(promise).resolves.toEqual({ vectors: [[0.1]], totalTokens: 7 });
+        expect(mockCreate).toHaveBeenLastCalledWith(expect.objectContaining({
+            input: ['line one line two'],
+        }));
+    });
+
+    it('should fail after the fifth retryable batch error', async () => {
+        mockCreate.mockRejectedValue({ status: 429, message: 'Rate limit' });
+        const promise = generateEmbeddingsBatch(['retry']);
+        promise.catch(() => undefined);
+        await jest.advanceTimersByTimeAsync(1000);
+        await jest.advanceTimersByTimeAsync(2000);
+        await jest.advanceTimersByTimeAsync(4000);
+        await jest.advanceTimersByTimeAsync(8000);
+        await expect(promise).rejects.toThrow('Failed to generate batch embeddings after 5 attempts: Rate limit');
+        expect(mockCreate).toHaveBeenCalledTimes(5);
+    });
+
+    it('should propagate non-retryable batch errors immediately', async () => {
+        const badRequest = { status: 400, message: 'Bad Request' };
+        mockCreate.mockRejectedValue(badRequest);
+        await expect(generateEmbeddingsBatch(['invalid'])).rejects.toBe(badRequest);
+        expect(mockCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should propagate a non-object batch failure without retrying', async () => {
+        mockCreate.mockRejectedValue(null);
+        await expect(generateEmbeddingsBatch(['invalid'])).rejects.toBeNull();
+        expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 });
 

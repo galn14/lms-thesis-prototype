@@ -1,0 +1,7 @@
+MATERI CONTOH MODE PROTOTYPE
+
+Dokumen ini adalah asset statis untuk demonstrasi LMS.
+Seluruh isi, identitas, jawaban, nilai, dan evidence pada prototype bersifat sintetis.
+
+Gunakan materi ini untuk mencoba tampilan sesi, tugas esai, hasil penilaian otomatis yang
+telah disiapkan, dan evidence pemeriksaan kemiripan tanpa menjalankan layanan eksternal.

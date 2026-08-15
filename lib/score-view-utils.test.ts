@@ -113,4 +113,46 @@ describe('groupSubmissionsByCourse', () => {
     ]);
     expect(course.assignments[0].latestActivityAt).toBe('2026-05-04T08:00:00.000Z');
   });
+
+  it('uses the most recent valid activity source and ignores invalid timestamps', () => {
+    const [course] = groupSubmissionsByCourse([
+      submission({
+        assignment_id: 20,
+        assignment_title: 'Dates',
+        submitted_at: 'invalid',
+        graded_at: '2026-05-02T08:00:00.000Z',
+        started_at: '2026-05-01T08:00:00.000Z',
+        assignment_due_date: '2026-05-03T08:00:00.000Z',
+      }),
+    ]);
+    expect(course.assignments[0].latestActivityAt).toBe('2026-05-03T08:00:00.000Z');
+  });
+
+  it('sorts equal or missing activity by assignment title', () => {
+    const [course] = groupSubmissionsByCourse([
+      submission({ assignment_id: 2, assignment_title: 'Zulu' }),
+      submission({ assignment_id: 1, assignment_title: 'Alpha' }),
+    ]);
+    expect(course.assignments.map(item => item.assignment_title)).toEqual(['Alpha', 'Zulu']);
+  });
+
+  it('returns zero averages when no score exists or total points are zero', () => {
+    const [course] = groupSubmissionsByCourse([
+      submission({ assignment_total_points: 0, total_score: null }),
+      submission({ id: 2, assignment_total_points: 0, total_score: undefined }),
+    ]);
+    expect(course.averageScore).toBe(0);
+    expect(course.assignments[0].averageScore).toBe(0);
+    expect(course.assignments[0].averagePercentage).toBe(0);
+  });
+
+  it('keeps a zero score as a graded submission', () => {
+    const [course] = groupSubmissionsByCourse([
+      submission({ assignment_total_points: 0, total_score: 0 }),
+    ]);
+    expect(course.gradedSubmissions).toBe(1);
+    expect(course.earnedPoints).toBe(0);
+    expect(course.assignments[0].gradedSubmissions).toBe(1);
+    expect(course.assignments[0].averagePercentage).toBe(0);
+  });
 });

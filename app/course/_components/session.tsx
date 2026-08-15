@@ -21,6 +21,8 @@ import DeleteConfirmModal from './delete-confirm-modal';
 import Materials from './materials';
 import { useToast } from './toast';
 import { useSession } from 'next-auth/react';
+import { isPublicPrototypeMode } from '@/lib/public-prototype-mode';
+import { PrototypeActionButton } from '@/components/common/prototype-action-button';
 
 interface Material {
   id: number;
@@ -393,8 +395,9 @@ const ActionsSidebar = ({
     setResourceMenuOpen(null);
   };
 
-  // Check if user can manage resources (teachers and admins only)
-  const canManageResources = sessionData?.user?.role === 'TEACHER' || sessionData?.user?.role === 'ADMIN';
+  const isInstructor = sessionData?.user?.role === 'TEACHER' || sessionData?.user?.role === 'ADMIN';
+  const prototypeMode = isPublicPrototypeMode();
+  const canManageResources = isInstructor;
 
   useEffect(() => {
     const handleClickOutside = () => {
@@ -473,7 +476,8 @@ const ActionsSidebar = ({
                     {canManageResources && resource.id && (
                       <div className="relative">
                         {' '}
-                        <button
+                        <PrototypeActionButton
+                          prototypeAction="resource-delete"
                           onClick={() =>
                             setResourceMenuOpen(resourceMenuOpen === resource.id ? null : resource.id || null)
                           }
@@ -481,16 +485,17 @@ const ActionsSidebar = ({
                           title="Resource actions"
                         >
                           <FaEllipsisV className="text-xs" />
-                        </button>
+                        </PrototypeActionButton>
                         {resourceMenuOpen === resource.id && (
                           <div className="absolute right-0 top-6 z-10 bg-white border border-gray-200 rounded-md shadow-lg py-1 min-w-[120px]">
-                            <button
+                            <PrototypeActionButton
+                              prototypeAction="resource-delete"
                               onClick={() => handleDeleteClick(resource)}
                               className="flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 w-full text-left transition-colors"
                             >
                               <FaTrash className="text-xs" />
                               Delete
-                            </button>
+                            </PrototypeActionButton>
                           </div>
                         )}
                       </div>
@@ -510,7 +515,8 @@ const ActionsSidebar = ({
             <h4 className="font-semibold text-gray-800 mb-3">Add Content</h4>
 
             <div className="relative flex justify-center">
-              <button
+              <PrototypeActionButton
+                prototypeAction="resource-upload"
                 onClick={() => setIsFabOpen(!isFabOpen)}
                 className={cn(
                   'w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-600 transition-all duration-300',
@@ -518,11 +524,12 @@ const ActionsSidebar = ({
                 )}
               >
                 <FaPlus className="text-lg" />
-              </button>
+              </PrototypeActionButton>
 
               {/* Action Buttons */}
               <div className="absolute top-16 flex flex-col items-center space-y-3">
-                <button
+                <PrototypeActionButton
+                  prototypeAction="resource-upload"
                   onClick={onAddFile}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-gray-100 transition-all duration-300',
@@ -532,9 +539,10 @@ const ActionsSidebar = ({
                 >
                   <FaFile className="text-blue-600" />
                   <span className="text-sm">File</span>
-                </button>
+                </PrototypeActionButton>
 
-                <button
+                <PrototypeActionButton
+                  prototypeAction="resource-upload"
                   onClick={onAddVideo}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-gray-100 transition-all duration-300',
@@ -544,9 +552,10 @@ const ActionsSidebar = ({
                 >
                   <FaVideo className="text-red-600" />
                   <span className="text-sm">Video</span>
-                </button>
+                </PrototypeActionButton>
 
-                <button
+                <PrototypeActionButton
+                  prototypeAction="resource-upload"
                   onClick={onAddLink}
                   className={cn(
                     'flex items-center gap-2 px-4 py-2 bg-white text-gray-800 rounded-full shadow-md hover:bg-gray-100 transition-all duration-300',
@@ -556,9 +565,15 @@ const ActionsSidebar = ({
                 >
                   <FaLink className="text-green-600" />
                   <span className="text-sm">Link</span>
-                </button>
+                </PrototypeActionButton>
               </div>
             </div>
+          </div>
+        )}
+
+        {isInstructor && prototypeMode && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            Upload and delete are disabled because prototype storage is read-only.
           </div>
         )}
 
@@ -580,6 +595,7 @@ const ActionsSidebar = ({
 };
 
 const Session = ({ sessions, activeSession, setActiveSession, courseCode }: SessionProps) => {
+  const prototypeMode = isPublicPrototypeMode();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [uploadType, setUploadType] = useState<'file' | 'video' | 'link'>('file');
@@ -616,18 +632,21 @@ const Session = ({ sessions, activeSession, setActiveSession, courseCode }: Sess
   };
 
   const handleAddFile = () => {
+    if (prototypeMode) return;
     setUploadType('file');
     setIsUploadModalOpen(true);
     setIsFabOpen(false);
   };
 
   const handleAddVideo = () => {
+    if (prototypeMode) return;
     setUploadType('video');
     setIsUploadModalOpen(true);
     setIsFabOpen(false);
   };
 
   const handleAddLink = () => {
+    if (prototypeMode) return;
     setUploadType('link');
     setIsUploadModalOpen(true);
     setIsFabOpen(false);
@@ -639,10 +658,12 @@ const Session = ({ sessions, activeSession, setActiveSession, courseCode }: Sess
   };
   // Resource management handlers
   const handleDeleteResource = async (resource: Resource) => {
+    if (prototypeMode) return;
     setSelectedResource(resource);
     setIsDeleteModalOpen(true);
   };
   const confirmDeleteResource = async () => {
+    if (prototypeMode) return;
     if (!courseCode || !selectedResource?.id) return;
 
     setIsDeleting(true);

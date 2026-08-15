@@ -21,6 +21,8 @@ import {
   FaChevronUp,
   FaCheck,
 } from 'react-icons/fa';
+import { isPublicPrototypeMode } from '@/lib/public-prototype-mode';
+import { prototypeActionState } from '@/components/common/prototype-action-button';
 
 interface AutoGradingModalProps {
   assignment: Assignment;
@@ -99,6 +101,7 @@ function gradeColor(grade: string | null) {
 }
 
 export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRunStarted }: AutoGradingModalProps) => {
+  const prototypeMode = isPublicPrototypeMode();
   const [step, setStep] = useState<Step>(1);
 
   // Step 1 state — select questions
@@ -371,6 +374,11 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
 
   // ── Step 4: run grading ──
   const runGrading = async () => {
+    if (prototypeMode) {
+      setGradingError('External processing is disabled in prototype mode. Prepared results remain available.');
+      return;
+    }
+
     setGradingError(null);
     setResults([]);
     setJobStatus(null);
@@ -469,6 +477,11 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
   if (!isOpen) return null;
 
   const submissionCount = assignment.submissions?.length ?? 0;
+  const gradingStartControl = prototypeActionState(
+    'grading',
+    grading || preflight.checking || (preflight.checked && !preflight.confirmed)
+  );
+  const gradingRerunControl = prototypeActionState('grading', false);
   const progressPct = jobStatus?.total_students
     ? Math.round((jobStatus.items_processed / jobStatus.total_students) * 100)
     : 0;
@@ -940,9 +953,15 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
             )}
 
             <div className="flex items-center gap-3 pt-2">
+              {prototypeMode && (
+                <p className="text-sm text-amber-800">
+                  New grading runs are disabled. Open the prepared results to explore this prototype.
+                </p>
+              )}
               <Button
                 onClick={runGrading}
-                disabled={grading || preflight.checking || (preflight.checked && !preflight.confirmed)}
+                disabled={gradingStartControl.disabled}
+                title={gradingStartControl.title}
                 className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white"
               >
                 {grading ? <FaSpinner className="animate-spin" size={13} /> : preflight.checking ? <FaSpinner className="animate-spin" size={13} /> : <FaPlay size={13} />}
@@ -974,6 +993,8 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
                 <Button
                   variant="outline"
                   onClick={rerunFromScratch}
+                  disabled={gradingRerunControl.disabled}
+                  title={gradingRerunControl.title}
                   className="shrink-0 text-xs border-indigo-300 text-indigo-700 hover:bg-indigo-100"
                 >
                   <FaPlay size={10} className="mr-1.5" /> Rerun from scratch

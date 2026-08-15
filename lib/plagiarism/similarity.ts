@@ -186,8 +186,6 @@ export function calculateJaccardSimilarity(textA: string, textB: string): number
 
   const unionCount = tokensA.size + tokensB.size - intersectionCount;
 
-  if (unionCount === 0) return 0;
-
   return intersectionCount / unionCount;
 }
 

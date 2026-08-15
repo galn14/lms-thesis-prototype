@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { unlink } from 'fs/promises';
 import path from 'path';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/auth';
+import { isAiInstructorRole } from '@/lib/auth/ai-role';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 interface RouteParams {
   code: string;
@@ -72,6 +76,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<Ro
 // DELETE - Delete resource
 export async function DELETE(request: NextRequest, { params }: { params: Promise<RouteParams> }) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!isAiInstructorRole(session.user.role)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
+
     const resolvedParams = await params;
     const { code, sessionId, resourceId } = resolvedParams;
     const resourceIdNum = parseInt(resourceId);

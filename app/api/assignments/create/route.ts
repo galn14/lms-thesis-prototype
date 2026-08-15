@@ -11,6 +11,7 @@ import {
 import fs from 'fs';
 import path from 'path';
 import { OpenAI } from 'openai';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 export async function POST(request: NextRequest) {
   try {
@@ -33,6 +34,9 @@ export async function POST(request: NextRequest) {
     if (!isInstructor) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     // 3. Parse Body
     const body = await request.json();
@@ -108,7 +112,7 @@ export async function POST(request: NextRequest) {
           resource_id: resource.id,
           file_id: openaiFile.id,
           filename: resource.file_name,
-          type_file: resource.file_type ?? ext.replace('.', '') ?? 'unknown',
+          type_file: resource.file_type ?? (ext.replace('.', '') || 'unknown'),
         });
       } catch (err) {
         console.error(`Failed to upload resource ${resource.id} to OpenAI:`, err);
@@ -124,7 +128,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 7. Delete old Vector Store if rerun
-    if (isRerun && existingAssignment?.vector_store_id) {
+    if (existingAssignment && existingAssignment.vector_store_id) {
       try {
         await openai.vectorStores.delete(existingAssignment.vector_store_id);
       } catch (e) {

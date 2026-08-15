@@ -8,6 +8,7 @@ import {
   getAcsAssignmentByAssignmentId,
   getUploadedFilesByAssignmentId,
 } from '@/lib/db2/acs-repo';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,6 +30,9 @@ export async function POST(request: NextRequest) {
     if (!isInstructor) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     // 2. Parse Body
     const body = await request.json();

@@ -38,6 +38,23 @@ describe('chunkText', () => {
     expect(chunks[0].end_char).toBe(normalizeText(text).length - 1);
   });
 
+  it('returns no chunks for normalized empty text', () => {
+    expect(chunkText(' \r\n\t ')).toEqual([]);
+  });
+
+  it('rejects invalid token sizing arguments', () => {
+    expect(() => chunkText('content', 0, 0)).toThrow('targetTokens must be a positive integer');
+    expect(() => chunkText('content', 1.5, 0)).toThrow('targetTokens must be a positive integer');
+    expect(() => chunkText('content', 10, -1)).toThrow('overlapTokens must be a non-negative integer');
+    expect(() => chunkText('content', 10, 1.5)).toThrow('overlapTokens must be a non-negative integer');
+  });
+
+  it('prefers a late word boundary when no sentence boundary is nearby', () => {
+    const chunks = chunkText('alpha beta gamma delta epsilon zeta eta theta iota kappa lambda '.repeat(4), 10, 0);
+    expect(chunks.length).toBeGreaterThan(1);
+    expect(chunks[0].content.endsWith(' ')).toBe(false);
+  });
+
   it('should chunk longer text with target token size and overlap', () => {
     const chunks = chunkText(longText, 100, 10);
     expect(chunks.length).toBeGreaterThan(1);

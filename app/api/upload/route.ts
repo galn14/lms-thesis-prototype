@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/auth';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 // Content type mapping for common file extensions
 const CONTENT_TYPE_MAP: Record<string, string> = {
@@ -70,6 +73,14 @@ function getContentType(filename: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
+
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const courseCode = formData.get('courseCode') as string;

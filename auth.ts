@@ -13,7 +13,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: 'Password', type: 'password' },
       },
       async authorize(credentials) {
-        if (!credentials?.username || !credentials?.password) {
+        if (!credentials?.username || !credentials.password) {
           console.log('Missing credentials');
           return null;
         }

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/auth';
+import { isAiInstructorRole } from '@/lib/auth/ai-role';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ code: string; sessionId: string }> }) {
   try {
@@ -16,6 +18,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         { status: 401 }
       );
     }
+
+    if (!isAiInstructorRole(session.user.role)) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     const { code, sessionId } = await params;
     const sessionIdNum = parseInt(sessionId);

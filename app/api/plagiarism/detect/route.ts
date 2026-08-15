@@ -6,6 +6,7 @@ import { initDetection, processDetection } from '@/lib/plagiarism/detection';
 import { prisma } from '@/lib/prisma';
 import { canUseFeature } from '@/lib/feature-access';
 import { isAiInstructorRole } from '@/lib/auth/ai-role';
+import { prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 export async function POST(request: Request) {
   try {
@@ -19,6 +20,9 @@ export async function POST(request: Request) {
     if (!isAiInstructorRole(role)) {
        return NextResponse.json({ error: 'Forbidden: Teachers only' }, { status: 403 });
     }
+
+    const prototypeResponse = prototypeExternalProcessingResponse();
+    if (prototypeResponse) return prototypeResponse;
 
     let body: Record<string, unknown>;
     try {

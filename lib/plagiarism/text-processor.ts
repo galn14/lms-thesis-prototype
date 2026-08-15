@@ -49,6 +49,13 @@ export function chunkText(
     return [];
   }
 
+  if (!Number.isInteger(targetTokens) || targetTokens <= 0) {
+    throw new RangeError('targetTokens must be a positive integer');
+  }
+  if (!Number.isInteger(overlapTokens) || overlapTokens < 0) {
+    throw new RangeError('overlapTokens must be a non-negative integer');
+  }
+
   const targetChars = targetTokens * 4;
   const overlapChars = overlapTokens * 4;
 
@@ -67,6 +74,10 @@ export function chunkText(
   }
 
   while (currentPos < textLength) {
+    while (currentPos < textLength && /\s/.test(normalizedText[currentPos])) {
+      currentPos++;
+    }
+
     let proposedEndPos = Math.min(currentPos + targetChars, textLength);
     let finalChunkEnd = proposedEndPos;
 
@@ -81,36 +92,21 @@ export function chunkText(
 
     while ((match = sentenceBoundaryRegex.exec(normalizedText)) !== null && match.index < searchEndForBoundary) {
       foundBoundary = match.index + match[0].length;
-      if (foundBoundary > currentPos) {
-          break;
-      }
+      break;
     }
 
-    if (foundBoundary !== -1 && foundBoundary > currentPos && foundBoundary <= searchEndForBoundary) {
-      if (foundBoundary - currentPos > MIN_CHARS_BEFORE_SENTENCE_BREAK || chunks.length === 0) {
-        finalChunkEnd = foundBoundary;
-      }
+    if (foundBoundary !== -1) {
+      finalChunkEnd = foundBoundary;
     } else {
         const tempChunkContent = normalizedText.substring(currentPos, proposedEndPos);
         const lastSpaceIndex = tempChunkContent.lastIndexOf(' ');
-        if (lastSpaceIndex > (targetChars * 0.8) && lastSpaceIndex !== -1 && (currentPos + lastSpaceIndex) > currentPos + (targetChars * 0.5)) {
+        if (lastSpaceIndex > (targetChars * 0.8)) {
             finalChunkEnd = currentPos + lastSpaceIndex;
         }
     }
 
-    let rawChunk = normalizedText.substring(currentPos, finalChunkEnd);
-    let chunkContent = rawChunk.trim();
-
-    if (chunkContent.length === 0 && currentPos < textLength) {
-        finalChunkEnd = Math.min(currentPos + 50, textLength);
-        rawChunk = normalizedText.substring(currentPos, finalChunkEnd);
-        chunkContent = rawChunk.trim();
-    }
-
-    if (chunkContent.length === 0) {
-      currentPos = Math.min(currentPos + targetChars, textLength);
-      continue;
-    }
+    const rawChunk = normalizedText.substring(currentPos, finalChunkEnd);
+    const chunkContent = rawChunk.trim();
     const leadingSpaces = rawChunk.length - rawChunk.trimStart().length;
     const trueStartChar = currentPos + leadingSpaces;
     const trueEndChar = trueStartChar + chunkContent.length - 1;
@@ -124,8 +120,7 @@ export function chunkText(
     });
 
     currentChunkIndex++;
-    currentPos = finalChunkEnd - overlapChars;
-    if (currentPos < 0) currentPos = 0;
+    currentPos = Math.max(finalChunkEnd - overlapChars, currentPos + 1);
     if (finalChunkEnd >= textLength) {
         break;
     }

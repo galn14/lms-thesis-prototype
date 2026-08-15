@@ -4,12 +4,27 @@ import { getCredential, upsertCredential, deleteCredential } from '@/lib/db2/adm
 import { encryptSecret, maskSecret } from '@/lib/crypto';
 import { resetOpenAICache } from '@/lib/openai';
 import { logAudit } from '@/lib/audit';
+import { isPrototypeMode, prototypeExternalProcessingResponse } from '@/lib/prototype-mode';
 
 const PROVIDER = 'openai';
 
 export async function GET() {
   const admin = await requireAdmin();
   if (!admin.ok) return admin.response;
+
+  if (isPrototypeMode()) {
+    return NextResponse.json({
+      success: true,
+      data: {
+        provider: PROVIDER,
+        configured: false,
+        source: 'none',
+        key_hint: null,
+        updated_by: null,
+        updated_at: null,
+      },
+    });
+  }
 
   const credential = await getCredential(PROVIDER);
 
@@ -44,6 +59,9 @@ export async function GET() {
 export async function PUT(request: NextRequest) {
   const admin = await requireAdmin();
   if (!admin.ok) return admin.response;
+
+  const prototypeResponse = prototypeExternalProcessingResponse();
+  if (prototypeResponse) return prototypeResponse;
 
   let body: unknown;
   try {
@@ -84,10 +102,13 @@ export async function PUT(request: NextRequest) {
   });
 }
 
-/** Reset to default: remove the stored key so the OPENAI_API_KEY env var is used. */
+/** Remove the stored provider credential and restore the configured server default. */
 export async function DELETE() {
   const admin = await requireAdmin();
   if (!admin.ok) return admin.response;
+
+  const prototypeResponse = prototypeExternalProcessingResponse();
+  if (prototypeResponse) return prototypeResponse;
 
   await deleteCredential(PROVIDER);
   resetOpenAICache();

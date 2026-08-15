@@ -87,6 +87,15 @@ describe('plagiarism detection', () => {
   });
 
   describe('processDetection', () => {
+    beforeEach(() => {
+      jest.spyOn(console, 'log').mockImplementation(() => undefined);
+      jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('should run detection with per-question scoring and store per_question_scores', async () => {
       // One row per (submission, question) with question_id
       mockQueryLMS.mockResolvedValue([
@@ -191,6 +200,133 @@ describe('plagiarism detection', () => {
         status: 'failed',
         error_message: 'DB Connection Failed',
       });
+    });
+
+    it('should reject malformed assignment IDs through the failure state', async () => {
+      await processDetection('detection-123', 'not-a-number', 'teacher-1');
+      expect(mockQueryLMS).not.toHaveBeenCalled();
+      expect(mockUpdateDetection).toHaveBeenCalledWith('detection-123', {
+        status: 'failed',
+        error_message: 'Invalid Assignment ID format',
+      });
+    });
+
+    it('should include only numeric question filters in the LMS query', async () => {
+      mockQueryLMS.mockResolvedValue([]);
+      await processDetection('detection-123', '101', 'teacher-1', ['12', 'invalid']);
+      expect(mockQueryLMS.mock.calls[0][1]).toEqual([101, [12]]);
+      expect(mockQueryLMS.mock.calls[0][0]).toContain('q.id = ANY($2::int[])');
+
+      mockQueryLMS.mockClear();
+      await processDetection('detection-123', '101', 'teacher-1', ['invalid']);
+      expect(mockQueryLMS.mock.calls[0][1]).toEqual([101]);
+      expect(mockQueryLMS.mock.calls[0][0]).not.toContain('q.id = ANY($2::int[])');
+    });
+
+    it('should skip short and whitespace-only submissions without calling the embedding provider', async () => {
+      mockQueryLMS.mockResolvedValue([
+        { submission_id: 'short', student_id: 'a', question_id: 'q1', answer_text: 'too short' },
+        { submission_id: 'space', student_id: 'b', question_id: 'q1', answer_text: ' '.repeat(60) },
+      ]);
+      await processDetection('detection-123', '101', 'teacher-1');
+      expect(mockCleanup).toHaveBeenCalledWith(['space']);
+      expect(mockGenerateEmbeddingsBatch).not.toHaveBeenCalled();
+      expect(mockFindSimilarChunksLateral).toHaveBeenCalledWith([], 10);
+      expect(mockInsertComparisons).not.toHaveBeenCalled();
+      expect(mockInsertFlags).not.toHaveBeenCalled();
+    });
+
+    it('should fail when a returned chunk cannot be mapped to its inserted row', async () => {
+      mockQueryLMS.mockResolvedValue([
+        { submission_id: 'sub', student_id: 'a', question_id: 'q1', answer_text: 'A sufficiently long essay answer '.repeat(3) },
+      ]);
+      mockInsertChunksReturningIds.mockResolvedValue([]);
+      await processDetection('detection-123', '101', 'teacher-1');
+      expect(mockUpdateDetection).toHaveBeenLastCalledWith('detection-123', {
+        status: 'failed',
+        error_message: 'Failed to map chunk index 0 to a DB row',
+      });
+    });
+
+    it('should report progress every five processed submissions and use z-score scoring for a full class', async () => {
+      const ids = ['sub-z', 'sub-a', 'sub-b', 'sub-c', 'sub-d', 'sub-e'];
+      mockQueryLMS.mockResolvedValue(ids.flatMap((submissionId, index) => [
+        {
+          submission_id: submissionId,
+          student_id: `student-${index}`,
+          question_id: 'q1',
+          answer_text: index === 0
+            ? 'Distinctive geography volcano tectonic evidence '.repeat(90)
+            : index === ids.length - 1
+              ? 'Last synthetic geography response with repeated long evidence '.repeat(90)
+            : `Independent synthetic answer number ${index} about classroom geography and regional mapping `.repeat(2),
+        },
+      ]));
+      mockInsertChunksReturningIds.mockImplementation((chunks: any[]) => Promise.resolve(
+        chunks.map(chunk => ({ id: `${chunk.submission_id}-chunk-${chunk.chunk_index}`, chunk_index: chunk.chunk_index }))
+      ));
+      mockGenerateEmbeddingsBatch.mockImplementation((texts: string[]) => Promise.resolve({
+        vectors: texts.map((_, index) => [1, index]),
+        totalTokens: texts.length,
+      }));
+      mockFindSimilarChunksLateral.mockResolvedValue([
+        {
+          source_chunk_id: 'sub-z-chunk-0', target_chunk_id: 'sub-a-chunk-0',
+          source_submission_id: 'sub-z', target_submission_id: 'sub-a',
+          source_content: 'source', target_content: 'target', question_index: 0, similarity: 0.9,
+        },
+        {
+          source_chunk_id: 'sub-a-chunk-0', target_chunk_id: 'sub-z-chunk-0',
+          source_submission_id: 'sub-a', target_submission_id: 'sub-z',
+          source_content: 'target', target_content: 'source', question_index: 0, similarity: 0.95,
+        },
+        {
+          source_chunk_id: 'sub-b-chunk-0', target_chunk_id: 'sub-c-chunk-0',
+          source_submission_id: 'sub-b', target_submission_id: 'sub-c',
+          source_content: 'low', target_content: 'low', question_index: 0, similarity: 0.4,
+        },
+        {
+          source_chunk_id: 'sub-d-chunk-0', target_chunk_id: 'sub-e-chunk-0',
+          source_submission_id: 'sub-d', target_submission_id: 'sub-e',
+          source_content: 'forward', target_content: 'reverse', question_index: 0, similarity: 0.8,
+        },
+        {
+          source_chunk_id: 'sub-e-chunk-0', target_chunk_id: 'sub-d-chunk-0',
+          source_submission_id: 'sub-e', target_submission_id: 'sub-d',
+          source_content: 'reverse', target_content: 'forward', question_index: 0, similarity: 0.7,
+        },
+      ]);
+
+      await processDetection('detection-123', '101', 'teacher-1');
+
+      expect(mockUpdateDetection).toHaveBeenCalledWith('detection-123', { processed_submissions: 5 });
+      expect(mockInsertComparisons).toHaveBeenCalled();
+      expect(mockInsertFlags).toHaveBeenCalled();
+      const comparisons = mockInsertComparisons.mock.calls[0][0];
+      expect(comparisons.some((comparison: any) => comparison.matched_chunks.chunks.length > 0)).toBe(true);
+      expect(mockUpdateDetection).toHaveBeenLastCalledWith('detection-123', expect.objectContaining({
+        status: 'completed', processed_submissions: 6,
+      }));
+    });
+
+    it('should skip same-student pairs and produce empty scores for disjoint questions', async () => {
+      mockQueryLMS.mockResolvedValue([
+        { submission_id: 'z', student_id: 'same', question_id: 'q1', answer_text: 'First long synthetic answer about geography '.repeat(2) },
+        { submission_id: 'a', student_id: 'same', question_id: 'q1', answer_text: 'Second long synthetic answer about geography '.repeat(2) },
+        { submission_id: 'b', student_id: 'other', question_id: 'q2', answer_text: 'Different long synthetic answer about biology '.repeat(2) },
+      ]);
+      mockGenerateEmbeddingsBatch.mockImplementation((texts: string[]) => Promise.resolve({
+        vectors: texts.map(() => [1, 0]), totalTokens: texts.length,
+      }));
+      mockInsertChunksReturningIds.mockImplementation((chunks: any[]) => Promise.resolve(
+        chunks.map(chunk => ({ id: `${chunk.submission_id}-${chunk.chunk_index}`, chunk_index: chunk.chunk_index }))
+      ));
+      await processDetection('detection-123', '101', 'teacher-1');
+      expect(mockInsertComparisons).not.toHaveBeenCalled();
+      expect(mockInsertFlags).not.toHaveBeenCalled();
+      expect(mockInsertAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+        metadata: { assignment_id: '101', matches_found: 0 },
+      }));
     });
   });
 });
