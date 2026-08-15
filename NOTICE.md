@@ -1,7 +1,7 @@
 # Attribution Notice
 
-This academic prototype is based on the Learning Management System used for SMA Katolik St. Louis 2 Surabaya and the source repository identified as `Josedio30/LMS_StLouis2`.
+LMS Thesis Prototype is based on the Learning Management System of SMA Katolik St. Louis 2 Surabaya from the `Josedio30/LMS_StLouis2` repository.
 
-School names, logos, and base-system materials remain attributable to their respective owners. Prototype extensions and the synthetic demonstration environment were prepared by Galeno Areliano for thesis evaluation.
+The structure and functions of the original LMS provide the foundation for this prototype. Galeno Areliano developed the Automated Grading feature, Plagiarism Detection feature, demonstration dataset, and Prototype Mode adaptations as part of a thesis research project.
 
-No real student records or external-service credentials are included in this repository.
+The school name, logo, original LMS source, and related materials remain attributable to their respective owners. This prototype repository does not introduce a new license or alter the ownership of those components.

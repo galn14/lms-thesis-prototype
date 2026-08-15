@@ -6,14 +6,23 @@
     "dev": "next dev --turbopack",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
+    "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:pull": "prisma db pull",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "db2:migrate-supabase": "node scripts/migrate-db2-from-supabase.mjs",
-    "test": "jest"
+    "test": "jest",
+    "test:coverage": "jest --coverage --runInBand",
+    "validate:prototype": "node scripts/prototype/cli/validate-env.cjs",
+    "validate:vercel-production": "node scripts/prototype/cli/validate-vercel-production.cjs",
+    "db:migrate:prototype": "node scripts/prototype/cli/prisma-migrate.cjs",
+    "db:migrate:aux": "node --import tsx scripts/prototype/migrate-auxiliary.ts",
+    "db:reset:prototype": "node --import tsx scripts/prototype/reset.ts",
+    "scan:secrets": "node scripts/prototype/cli/scan-secrets.cjs",
+    "scan:artifacts": "node scripts/prototype/cli/scan-artifacts.cjs",
+    "release:prototype": "node scripts/prototype/cli/release.cjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
@@ -22,8 +31,6 @@
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.86.0",
     "@tiptap/pm": "^2.13.0",
     "@tiptap/react": "^2.13.0",
     "@tiptap/starter-kit": "^2.13.0",
@@ -63,6 +70,8 @@
     "jest": "^30.2.0",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
-    "typescript": "^5"
+    "tsx": "4.21.0",
+    "typescript": "^5",
+    "vercel": "59.1.3"
   }
 }

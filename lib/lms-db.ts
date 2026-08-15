@@ -8,15 +8,18 @@ function getLmsPool() {
     return lmsPool;
   }
 
-  const connectionString = process.env.LMS_POSTGRES_URL || process.env.DATABASE_URL;
+  const connectionString = process.env.DATABASE_URL;
 
   if (!connectionString) {
-    throw new Error('Missing LMS_POSTGRES_URL or DATABASE_URL environment variable');
+    throw new Error('Missing DATABASE_URL environment variable');
   }
 
   lmsPool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
   });
 
   return lmsPool;

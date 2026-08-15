@@ -1,3 +1,5 @@
+const { thresholds } = require('./.coverage-thresholds.json');
+
 /** @type {import('ts-jest').JestConfigWithTsJest} */
 module.exports = {
   preset: 'ts-jest',
@@ -6,4 +8,7 @@ module.exports = {
     '^@/(.*)$': '<rootDir>/$1',
   },
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
+  coverageThreshold: {
+    global: thresholds,
+  },
 };
