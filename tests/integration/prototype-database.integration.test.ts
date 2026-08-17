@@ -58,7 +58,11 @@ integrationDescribe('prototype database from an empty isolated schema', () => {
     }
     const prismaDirect = withSchema(directBase, schema, true);
     const scopedDirect = withSchema(directBase, schema, false);
-    const scopedPooled = withSchema(pooledBase, schema, false);
+    // Neon's pooler rejects the "options" startup parameter, so a disposable
+    // search_path cannot be routed through it. The pooled role is therefore
+    // filled by the direct endpoint here; the real pooled endpoint runs on the
+    // public schema without that parameter and is covered by the smoke test.
+    const scopedPooled = withSchema(directBase, schema, false);
     const installationId = randomUUID();
     const administrationClient = new Client({ connectionString: directBase });
     await administrationClient.connect();

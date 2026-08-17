@@ -325,7 +325,11 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
           max_score: 50,
           qualitative_grade: score >= 45 ? 'Sangat Baik' : score >= 40 ? 'Baik' : 'Cukup',
           feedback: 'Penilaian demonstrasi sintetis berdasarkan rubrik contoh.',
-          citations: [{ source: 'material-sintetis', page: questionNumber }],
+          // Serialized because node-postgres renders a JS array as a
+          // PostgreSQL array literal, which jsonb rejects. Object values such
+          // as rubric_alignment are stringified by the driver already, and
+          // scanned_question_ids is a genuine TEXT[] that must stay an array.
+          citations: JSON.stringify([{ source: 'material-sintetis', page: questionNumber }]),
           confidence: 'demo',
           rubric_alignment: { synthetic: true, concept: score / 50 },
           language_detected: 'id',
