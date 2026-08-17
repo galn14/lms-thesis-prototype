@@ -1,3 +1,5 @@
+const os = require('node:os');
+
 const {
   CONFIG_ENV_NAMES,
   SENSITIVE_ENV_NAMES,
@@ -100,7 +102,7 @@ describe('Vercel Production environment failure modes', () => {
     [{ status: 1 }, 'Unable to inspect Vercel Production environment metadata'],
     [{ status: null, error: new Error('spawn failed') }, 'Unable to inspect Vercel Production environment metadata'],
     [{ status: 0, stdout: 'not-json' }, 'Vercel Production metadata returned invalid JSON'],
-    [{ status: 0, stdout: '{"key":"value"}' }, 'Vercel Production metadata must be a JSON array'],
+    [{ status: 0, stdout: '{"key":"value"}' }, 'Vercel Production metadata must list environment records'],
   ])('fails closed when the metadata listing is unusable (%#)', (result, expectedError) => {
     expect(() => listVercelProductionMetadata({
       environment: vercelValidEnvironment(),
@@ -111,7 +113,7 @@ describe('Vercel Production environment failure modes', () => {
   });
 
   test('attaches validation details without exposing any environment value', () => {
-    const incomplete = [{ id: 'env_0', key: CONFIG_ENV_NAMES[0], type: 'encrypted', target: ['production'], updatedAt: 1 }];
+    const incomplete = [{ key: CONFIG_ENV_NAMES[0], type: 'encrypted', target: ['production'], updatedAt: 1 }];
     try {
       listVercelProductionMetadata({
         environment: vercelValidEnvironment(),
@@ -131,11 +133,18 @@ describe('Vercel Production environment failure modes', () => {
   });
 
   test('CLI fails closed on an unlinked repository without exposing environment values', () => {
+    // Run outside this repository: it is linked to a real Vercel project, and
+    // the CLI adapter would otherwise reach the live environment.
+    const cwd = jest.spyOn(process, 'cwd').mockReturnValue(os.tmpdir());
     const logger = { error: jest.fn(), log: jest.fn() };
-    expect(runVercelCli(vercelValidEnvironment(), logger)).toBe(1);
-    expect(logger.error).toHaveBeenCalledTimes(1);
-    expect(logger.log).not.toHaveBeenCalled();
-    expect(JSON.stringify(logger.error.mock.calls)).not.toContain('shared-password-for-tests');
+    try {
+      expect(runVercelCli(vercelValidEnvironment(), logger)).toBe(1);
+      expect(logger.error).toHaveBeenCalledTimes(1);
+      expect(logger.log).not.toHaveBeenCalled();
+      expect(JSON.stringify(logger.error.mock.calls)).not.toContain('shared-password-for-tests');
+    } finally {
+      cwd.mockRestore();
+    }
   });
 });
 

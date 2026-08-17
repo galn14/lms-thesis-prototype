@@ -30,7 +30,6 @@ function assertLinkedProject(projectLinkContent) {
 
 function normalizeVercelMetadata(records) {
   return records.map((record) => ({
-    id: String(record.id ?? ''),
     key: String(record.key ?? record.name ?? ''),
     visibility: record.type === 'sensitive' ? 'sensitive' : 'config',
     target: (Array.isArray(record.target) ? [...record.target] : [record.target].filter(Boolean)).sort(),
@@ -50,7 +49,6 @@ function validateVercelProductionMetadata(metadata) {
     const expectedVisibility = SENSITIVE_ENV_NAMES.includes(name) ? 'sensitive' : 'config';
     if (record.visibility !== expectedVisibility) errors.push(`${name} must use ${expectedVisibility} visibility`);
     if (!record.target.includes('production')) errors.push(`${name} must target Vercel Production`);
-    if (!record.id) errors.push(`${name} must have a Vercel metadata ID`);
     if (!Number.isFinite(record.updatedAt) || record.updatedAt <= 0) errors.push(`${name} must have a valid updatedAt timestamp`);
   }
   return { valid: errors.length === 0, errors };
@@ -66,9 +64,12 @@ function listVercelProductionMetadata({ environment = process.env, run = spawnSy
     cwd, env: vercelProcessEnvironment(environment), encoding: 'utf8', stdio: 'pipe',
   });
   if (result.error || result.status !== 0) throw new Error('Unable to inspect Vercel Production environment metadata');
-  let records;
-  try { records = JSON.parse(result.stdout); } catch { throw new Error('Vercel Production metadata returned invalid JSON'); }
-  if (!Array.isArray(records)) throw new Error('Vercel Production metadata must be a JSON array');
+  let parsed;
+  try { parsed = JSON.parse(result.stdout); } catch { throw new Error('Vercel Production metadata returned invalid JSON'); }
+  // The pinned CLI wraps the records in an "envs" property; a bare array is
+  // accepted too so the shape is not tied to one CLI release.
+  const records = Array.isArray(parsed) ? parsed : parsed?.envs;
+  if (!Array.isArray(records)) throw new Error('Vercel Production metadata must list environment records');
   const metadata = normalizeVercelMetadata(records);
   const validation = validateVercelProductionMetadata(metadata);
   if (!validation.valid) {

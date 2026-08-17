@@ -1,3 +1,5 @@
+const os = require('node:os');
+
 const {
   CONFIG_ENV_NAMES,
   SENSITIVE_ENV_NAMES,
@@ -19,7 +21,7 @@ const completeEnvironment = (): Record<string, string> => ({
 });
 
 const remoteRecords = () => [...CONFIG_ENV_NAMES, ...SENSITIVE_ENV_NAMES].map((key, index) => ({
-  id: `env_${index}`, key,
+  key,
   type: SENSITIVE_ENV_NAMES.includes(key) ? 'sensitive' : 'encrypted',
   target: ['production'], updatedAt: 1_700_000_000_000 + index,
 }));
@@ -57,13 +59,20 @@ describe('Vercel Production metadata synchronization', () => {
       { name: 'CRON_SECRET', type: 'sensitive', target: 'production', updated_at: 1_700_000_000_000 },
       {},
     ])).toEqual([
-      { id: '', key: '', visibility: 'config', target: [], updatedAt: 0 },
-      { id: '', key: 'CRON_SECRET', visibility: 'sensitive', target: ['production'], updatedAt: 1_700_000_000_000 },
+      { key: '', visibility: 'config', target: [], updatedAt: 0 },
+      { key: 'CRON_SECRET', visibility: 'sensitive', target: ['production'], updatedAt: 1_700_000_000_000 },
     ]);
   });
 
   test('reads the process environment when no adapters are supplied', () => {
-    expect(() => listVercelProductionMetadata()).toThrow();
+    // Run outside this repository: it is linked to a real Vercel project, and
+    // the default spawner would otherwise query the live environment.
+    const cwd = jest.spyOn(process, 'cwd').mockReturnValue(os.tmpdir());
+    try {
+      expect(() => listVercelProductionMetadata()).toThrow();
+    } finally {
+      cwd.mockRestore();
+    }
   });
 
   test('lists metadata without pulling values and normalizes stable fields', () => {
@@ -75,23 +84,22 @@ describe('Vercel Production metadata synchronization', () => {
     });
     expect(run.mock.calls[0][1]).toEqual(['/vercel.js', 'env', 'ls', 'production', '--json']);
     expect(JSON.stringify(metadata)).not.toContain('shared-password-for-tests');
-    expect(metadata.find((item: { key: string }) => item.key === 'PROTOTYPE_MODE')).toEqual({ id: 'env_0', key: 'PROTOTYPE_MODE', visibility: 'config', target: ['production'], updatedAt: 1700000000000 });
+    expect(metadata.find((item: { key: string }) => item.key === 'PROTOTYPE_MODE')).toEqual({ key: 'PROTOTYPE_MODE', visibility: 'config', target: ['production'], updatedAt: 1700000000000 });
   });
 
-  test('requires the exact allowlist, visibility, IDs, production target, and updated timestamps', () => {
+  test('requires the exact allowlist, visibility, production target, and updated timestamps', () => {
     const metadata = normalizeVercelMetadata(remoteRecords());
     expect(validateVercelProductionMetadata(metadata)).toEqual({ valid: true, errors: [] });
     const invalid = normalizeVercelMetadata([
       ...remoteRecords().filter((record) => record.key !== 'CRON_SECRET'),
-      { id: 'provider', key: 'OPENAI_API_KEY', type: 'sensitive', target: ['production'], updatedAt: 1 },
-      { id: '', key: 'CRON_SECRET', type: 'encrypted', target: ['preview'], updatedAt: 0 },
+      { key: 'OPENAI_API_KEY', type: 'sensitive', target: ['production'], updatedAt: 1 },
+      { key: 'CRON_SECRET', type: 'encrypted', target: ['preview'], updatedAt: 0 },
     ]);
     const errors = validateVercelProductionMetadata(invalid).errors.join('\n');
     expect(errors).toContain('Provider API key');
     expect(errors).toContain('CRON_SECRET');
     expect(errors).toContain('sensitive');
     expect(errors).toContain('Production');
-    expect(errors).toContain('metadata ID');
     expect(errors).toContain('updatedAt');
   });
 

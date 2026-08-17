@@ -1,3 +1,5 @@
+// The pinned Vercel CLI reports `env ls --json` as { envs: [...] } and omits the
+// record id that the REST API exposes, so these fixtures mirror that shape.
 const REQUIRED_NAMES = [
   'PROTOTYPE_MODE',
   'NEXT_PUBLIC_PROTOTYPE_MODE',
@@ -16,7 +18,6 @@ const CONFIG_NAMES = REQUIRED_NAMES.slice(0, 4);
 const remoteRecords = (omitted: string[] = []) => REQUIRED_NAMES
   .filter((key) => !omitted.includes(key))
   .map((key, index) => ({
-    id: `env_${index}`,
     key,
     type: CONFIG_NAMES.includes(key) ? 'encrypted' : 'sensitive',
     target: ['production'],
@@ -39,7 +40,7 @@ describe('Vercel Production system adapters', () => {
   });
 
   test('uses the pinned CLI and real system adapters by default', () => {
-    const spawnSync = jest.fn(() => ({ status: 0, stdout: JSON.stringify(remoteRecords()) }));
+    const spawnSync = jest.fn(() => ({ status: 0, stdout: JSON.stringify({ envs: remoteRecords() }) }));
     jest.doMock('node:child_process', () => ({ spawnSync }));
     jest.doMock('node:fs', () => systemFilesystem(remoteRecords()));
 
@@ -59,7 +60,7 @@ describe('Vercel Production system adapters', () => {
 
   test('reports every metadata validation error through the CLI logger', () => {
     jest.doMock('node:child_process', () => ({
-      spawnSync: () => ({ status: 0, stdout: JSON.stringify(remoteRecords(['CRON_SECRET'])) }),
+      spawnSync: () => ({ status: 0, stdout: JSON.stringify({ envs: remoteRecords(['CRON_SECRET']) }) }),
     }));
     jest.doMock('node:fs', () => systemFilesystem(remoteRecords(['CRON_SECRET'])));
 
