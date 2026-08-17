@@ -62,6 +62,81 @@ function studentAnswer(courseName: string, studentNumber: number, questionNumber
   return `${base} Contoh siswa sintetis ${studentNumber.toString().padStart(2, '0')} menekankan alasan, contoh, dan kesimpulan yang dapat ditinjau guru.`;
 }
 
+const FEEDBACK_TOPICS: Record<string, string[]> = {
+  Geografi: [
+    'interaksi atmosfer, hidrosfer, dan aktivitas manusia dalam membentuk pola wilayah',
+    'mitigasi risiko bencana melalui pemetaan, edukasi warga, dan tata ruang',
+  ],
+  Biologi: [
+    'keanekaragaman gen, spesies, dan ekosistem serta perannya bagi kestabilan lingkungan',
+    'rancangan pengamatan terkontrol dan pengendalian variabel',
+  ],
+  Agama: [
+    'martabat manusia yang diwujudkan melalui kepedulian dan tanggung jawab sosial',
+    'refleksi etis atas dampak pilihan terhadap diri sendiri dan sesama',
+  ],
+};
+
+/**
+ * Narrative grading feedback for the demonstration dataset.
+ *
+ * Mirrors the four-aspect structure the grading prompt asks the model to
+ * produce (completeness, writing quality, critical thinking, content accuracy)
+ * so the teacher view shows reviewable prose instead of a placeholder line.
+ * The literal "**" markers are intentional: the interface prints feedback as
+ * plain text, which is how genuine model output appears there too. Wording is
+ * derived from the score band so it stays deterministic across reseeds.
+ */
+function gradingFeedback(courseName: string, questionNumber: number, score: number): string {
+  const topic = FEEDBACK_TOPICS[courseName][questionNumber - 1];
+  const band = score >= 45 ? 'high' : score >= 40 ? 'mid' : 'low';
+
+  const opening = {
+    high: `Jawaban Anda menguraikan ${topic} secara runtut dan mencakup hampir seluruh elemen kunci yang diminta rubrik.`,
+    mid: `Jawaban Anda memberikan gambaran yang baik tentang ${topic}, mencakup elemen-elemen kunci yang diminta rubrik. Namun, ada beberapa aspek yang bisa diperluas untuk meningkatkan kedalaman analisis.`,
+    low: `Jawaban Anda sudah menyentuh ${topic}, tetapi uraiannya masih bertahan pada pernyataan umum sehingga sebagian kriteria rubrik belum terpenuhi.`,
+  }[band];
+
+  const kelengkapan = {
+    high: 'Seluruh komponen yang diminta pertanyaan telah dibahas, termasuk kaitan antarkonsep yang sering terlewat.',
+    mid: 'Komponen utama sudah disebutkan, namun penjelasan lanjutan mengenai penerapannya akan memperkaya jawaban.',
+    low: 'Beberapa komponen yang diminta pertanyaan belum disinggung, sehingga jawaban terasa belum utuh.',
+  }[band];
+
+  const penulisan = {
+    high: 'Tulisan jelas, terstruktur, dan mudah diikuti dari premis hingga kesimpulan.',
+    mid: 'Secara keseluruhan tulisan jelas dan terstruktur, meski beberapa kalimat dapat diperhalus untuk meningkatkan keterbacaan.',
+    low: 'Struktur tulisan masih longgar; gagasan akan lebih mudah diikuti bila disusun dalam urutan sebab-akibat.',
+  }[band];
+
+  const kritis = {
+    high: 'Anda menimbang lebih dari satu sudut pandang dan menutupnya dengan simpulan yang beralasan.',
+    mid: 'Pemahaman konsep dasar terlihat baik; menambahkan contoh konkret atau studi kasus akan menunjukkan kemampuan analitis yang lebih dalam.',
+    low: 'Argumen belum diuji terhadap kemungkinan lain, sehingga simpulan masih bersifat penegasan ulang.',
+  }[band];
+
+  const akurasi = {
+    high: 'Istilah dan definisi yang dipakai sudah tepat dan konsisten sepanjang jawaban.',
+    mid: 'Definisi yang Anda berikan sesuai dengan pemahaman umum; rujukan pada sumber yang lebih formal akan memperkuat argumen.',
+    low: 'Terdapat istilah yang digunakan secara longgar sehingga maknanya perlu ditegaskan kembali.',
+  }[band];
+
+  const closing = {
+    high: 'Secara keseluruhan jawaban ini kuat; pertahankan ketelitian penggunaan istilah pada tugas berikutnya.',
+    mid: 'Secara keseluruhan jawaban Anda solid dan mencakup banyak poin penting, tetapi masih ada ruang untuk memperdalam analisis.',
+    low: 'Secara keseluruhan jawaban ini memerlukan pengembangan lebih lanjut, terutama pada kedalaman uraian dan ketepatan istilah.',
+  }[band];
+
+  return [
+    opening,
+    `- **Kelengkapan**: ${kelengkapan}`,
+    `- **Kualitas Penulisan**: ${penulisan}`,
+    `- **Pemikiran Kritis**: ${kritis}`,
+    `- **Konten dan Akurasi**: ${akurasi}`,
+    closing,
+  ].join(' ');
+}
+
 export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
   const enumerations: SeedRow[] = [
     { id: 1, name: 'STUDENT', alt_name: 'Siswa', category: 'ROLE', is_default: true },
@@ -337,7 +412,7 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
           score,
           max_score: 50,
           qualitative_grade: score >= 45 ? 'Sangat Baik' : score >= 40 ? 'Baik' : 'Cukup',
-          feedback: 'Penilaian demonstrasi sintetis berdasarkan rubrik contoh.',
+          feedback: gradingFeedback(String(course.course_name), questionNumber, score),
           // Shapes follow the grading contract in
           // prompts/grading-system-prompt.txt: citations is string[] and
           // rubric_alignment maps a criterion to "pass"/"fail". The teacher UI
@@ -351,10 +426,12 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
           // procedure document specifies the "demo" marker so the interface
           // shows its manual-review label, marking the score as synthetic.
           confidence: 'demo',
+          // Bands follow the score so no result contradicts itself: the lowest
+          // synthetic score is 37/50, which should not fail every criterion.
           rubric_alignment: {
-            'ketepatan konsep': score >= 40 ? 'pass' : 'fail',
+            'ketepatan konsep': 'pass',
+            contoh: score >= 40 ? 'pass' : 'fail',
             argumentasi: score >= 45 ? 'pass' : 'fail',
-            contoh: score >= 42 ? 'pass' : 'fail',
           },
           language_detected: 'id',
         });

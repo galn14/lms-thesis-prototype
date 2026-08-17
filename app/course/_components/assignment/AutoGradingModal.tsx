@@ -1023,11 +1023,17 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
                 const isExpanded = expandedStudents.has(studentId);
                 const totalScore = studentResults.reduce((s, r) => s + (r.score ?? 0), 0);
                 const totalMax = studentResults.reduce((s, r) => s + (r.max_score || 0), 0);
+                // Only claim confidence when every result says so. Treating an
+                // unrecognised value as 'high' would advertise confidence the
+                // model never reported, and would disagree with the per-question
+                // badge, which falls back to manual review.
                 const overallConf = studentResults.some(r => r.confidence === 'low')
                   ? 'low'
                   : studentResults.some(r => r.confidence === 'medium')
                     ? 'medium'
-                    : 'high';
+                    : studentResults.every(r => r.confidence === 'high')
+                      ? 'high'
+                      : 'unknown';
                 const conf = confidenceLabel(overallConf);
 
                 return (

@@ -56,6 +56,25 @@ describe('buildSyntheticDataset', () => {
     }
   });
 
+  it('writes reviewable grading feedback instead of a placeholder line', () => {
+    for (const result of dataset.gradingResults) {
+      const feedback = String(result.feedback);
+      expect(feedback.length).toBeGreaterThan(400);
+      for (const aspect of ['Kelengkapan', 'Kualitas Penulisan', 'Pemikiran Kritis', 'Konten dan Akurasi']) {
+        expect(feedback).toContain(`**${aspect}**`);
+      }
+    }
+    // Wording must follow the score, not be one repeated block of text.
+    const distinct = new Set(dataset.gradingResults.map(result => String(result.feedback)));
+    expect(distinct.size).toBeGreaterThan(1);
+  });
+
+  it('never contradicts itself between score and rubric alignment', () => {
+    for (const result of dataset.gradingResults) {
+      expect(Object.values(result.rubric_alignment as Record<string, string>)).toContain('pass');
+    }
+  });
+
   it('covers every counted student so grading progress reads as complete', () => {
     // The dashboard renders distinct graded students over total_students, so a
     // job whose results miss a student would show partial progress.
