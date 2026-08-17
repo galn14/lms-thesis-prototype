@@ -181,16 +181,6 @@ export const getScoreDisplayStatus = (
 } => {
   const requiresManualGrading = needsManualGrading(questions, questionTypes);
 
-  // If needs manual grading and not fully graded
-  if (requiresManualGrading && !isFullyGraded) {
-    return {
-      display: 'Pending Grading',
-      percentage: null,
-      letterGrade: null,
-      status: 'pending',
-    };
-  }
-
   // If has some auto-graded questions but also manual ones
   if (requiresManualGrading && totalScore !== null && !isFullyGraded) {
     const percentage = calculatePercentage(totalScore, maxScore);
@@ -199,6 +189,16 @@ export const getScoreDisplayStatus = (
       percentage,
       letterGrade: getLetterGrade(percentage),
       status: 'partial',
+    };
+  }
+
+  // If needs manual grading and no score is available yet
+  if (requiresManualGrading && !isFullyGraded) {
+    return {
+      display: 'Pending Grading',
+      percentage: null,
+      letterGrade: null,
+      status: 'pending',
     };
   }
 

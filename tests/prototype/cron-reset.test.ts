@@ -1,15 +1,15 @@
-const resetPrototypeDatabase = jest.fn();
-
 jest.mock('@/lib/prototype/reset', () => {
   class ResetInProgressError extends Error {}
   return {
-    resetPrototypeDatabase,
+    resetPrototypeDatabase: jest.fn(),
     ResetInProgressError,
   };
 });
 
 import { GET } from '@/app/api/cron/reset/route';
-import { ResetInProgressError } from '@/lib/prototype/reset';
+import { resetPrototypeDatabase, ResetInProgressError } from '@/lib/prototype/reset';
+
+const resetPrototypeDatabaseMock = jest.mocked(resetPrototypeDatabase);
 
 describe('GET /api/cron/reset', () => {
   const previousSecret = process.env.CRON_SECRET;
@@ -32,7 +32,7 @@ describe('GET /api/cron/reset', () => {
 
       expect(response.status).toBe(401);
       expect(await response.json()).toEqual({ success: false, code: 'UNAUTHORIZED' });
-      expect(resetPrototypeDatabase).not.toHaveBeenCalled();
+      expect(resetPrototypeDatabaseMock).not.toHaveBeenCalled();
     }
   );
 
@@ -43,11 +43,11 @@ describe('GET /api/cron/reset', () => {
     }));
 
     expect(response.status).toBe(401);
-    expect(resetPrototypeDatabase).not.toHaveBeenCalled();
+    expect(resetPrototypeDatabaseMock).not.toHaveBeenCalled();
   });
 
   it('runs the reset for the exact bearer secret', async () => {
-    resetPrototypeDatabase.mockResolvedValue({
+    resetPrototypeDatabaseMock.mockResolvedValue({
       resetVersion: 7,
       completedAt: '2026-08-15T17:00:00.000Z',
     });
@@ -64,7 +64,7 @@ describe('GET /api/cron/reset', () => {
   });
 
   it('maps a held advisory lock to RESET_IN_PROGRESS', async () => {
-    resetPrototypeDatabase.mockRejectedValue(new ResetInProgressError());
+    resetPrototypeDatabaseMock.mockRejectedValue(new ResetInProgressError());
     const response = await GET(new Request('https://prototype.invalid/api/cron/reset', {
       headers: { authorization: 'Bearer cron-secret-for-tests' },
     }));
@@ -74,7 +74,7 @@ describe('GET /api/cron/reset', () => {
   });
 
   it('does not leak reset errors', async () => {
-    resetPrototypeDatabase.mockRejectedValue(new Error('database connection contains credentials'));
+    resetPrototypeDatabaseMock.mockRejectedValue(new Error('database connection contains credentials'));
     const response = await GET(new Request('https://prototype.invalid/api/cron/reset', {
       headers: { authorization: 'Bearer cron-secret-for-tests' },
     }));

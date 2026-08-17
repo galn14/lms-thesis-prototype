@@ -16,9 +16,12 @@ function getAuxPool() {
   auxPool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 5,
+    max: 2,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
+  });
+  auxPool.on('error', () => {
+    console.error('Unexpected auxiliary database pool error');
   });
 
   return auxPool;

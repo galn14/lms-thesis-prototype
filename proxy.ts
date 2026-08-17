@@ -21,7 +21,11 @@ function isPublicStaticPath(pathname: string) {
   );
 }
 
-export async function middleware(request: NextRequest) {
+function matchesRoute(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname === '/api/cron/reset') {
@@ -42,17 +46,15 @@ export async function middleware(request: NextRequest) {
   });
 
   const publicRoutes = ['/login', '/auth'];
-  const isPublicRoute = publicRoutes.some(route => pathname.startsWith(route));
+  const isPublicRoute = publicRoutes.some(route => matchesRoute(pathname, route));
 
   if (token) {
     const now = Date.now() / 1000;
 
     if (token.exp && (token.exp as number) < now) {
-      console.warn('[Middleware] Token expired. Clearing session.');
+      console.warn('[Proxy] Token expired. Clearing session.');
 
       const response = NextResponse.redirect(new URL('/login', request.url));
-
-      const cookieOptions = { path: '/', secure: process.env.NODE_ENV === 'production' };
 
       response.cookies.delete('next-auth.session-token');
       response.cookies.delete('__Secure-next-auth.session-token');

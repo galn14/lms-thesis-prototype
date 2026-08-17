@@ -2,11 +2,15 @@
   "name": "lms-thesis-prototype",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
+  "packageManager": "npm@11.12.1",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint .",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
@@ -22,7 +26,9 @@
     "db:reset:prototype": "node --import tsx scripts/prototype/reset.ts",
     "scan:secrets": "node scripts/prototype/cli/scan-secrets.cjs",
     "scan:artifacts": "node scripts/prototype/cli/scan-artifacts.cjs",
-    "release:prototype": "node scripts/prototype/cli/release.cjs"
+    "prepare:prototype": "node scripts/prototype/cli/prepare.cjs",
+    "deploy:prototype": "node scripts/prototype/cli/deploy.cjs",
+    "release:prototype": "npm run prepare:prototype && npm run deploy:prototype"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.0",
@@ -44,34 +50,38 @@
     "date-fns": "^4.1.0",
     "franc-min": "^6.2.0",
     "lucide-react": "^0.485.0",
-    "next": "15.2.3",
-    "next-auth": "^4.24.11",
+    "next": "16.3.1",
+    "next-auth": "4.24.15",
     "openai": "^6.9.1",
     "pg": "^8.16.0",
     "postgres": "^3.4.7",
     "prisma": "^6.8.2",
-    "react": "^19.0.0",
+    "react": "19.2.8",
     "react-day-picker": "^9.7.0",
-    "react-dom": "^19.0.0",
+    "react-dom": "19.2.8",
     "react-icons": "^5.5.0",
     "tailwind-merge": "^3.0.2",
-    "tw-animate-css": "^1.2.5",
-    "xlsx": "^0.18.5"
+    "tw-animate-css": "^1.2.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "dotenv": "^16.5.0",
     "eslint": "^9.39.4",
-    "eslint-config-next": "^15.2.3",
+    "eslint-config-next": "16.3.1",
     "jest": "^30.2.0",
     "tailwindcss": "^4",
     "ts-jest": "^29.4.6",
     "tsx": "4.21.0",
     "typescript": "^5",
     "vercel": "59.1.3"
+  },
+  "overrides": {
+    "linkify-it": "5.0.2",
+    "markdown-it": "14.3.0",
+    "preact": "10.29.8"
   }
 }

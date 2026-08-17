@@ -37,7 +37,7 @@ describe('legacy postgres client configuration', () => {
     expect(databaseModule.default).toBe(client);
     expect(postgres).toHaveBeenCalledWith(
       'postgresql://user:password@ep-demo-pooler.region.aws.neon.tech/lms',
-      { ssl, max: 10 }
+      { ssl, max: 2 }
     );
   });
 
@@ -83,7 +83,8 @@ describe('LMS database routing', () => {
       query: jest.fn().mockResolvedValue({ rows: [{ id: 1 }] }),
       release,
     });
-    const Pool = jest.fn(() => ({ connect }));
+    const on = jest.fn();
+    const Pool = jest.fn(() => ({ connect, on }));
     jest.doMock('pg', () => ({ Pool }));
     const { queryLMS } = await import('@/lib/lms-db');
     await expect(queryLMS('SELECT 1')).resolves.toEqual([{ id: 1 }]);
@@ -92,8 +93,41 @@ describe('LMS database routing', () => {
     expect(Pool).toHaveBeenCalledWith(expect.objectContaining({
       connectionString: 'postgresql://pooled.example/lms',
       ssl: { rejectUnauthorized: false },
+      max: 2,
     }));
     expect(release).toHaveBeenCalledTimes(2);
+    expect(on).toHaveBeenCalledWith('error', expect.any(Function));
+  });
+
+  it('handles idle LMS pool errors without exposing the error or exiting', async () => {
+    process.env = {
+      ...originalEnv,
+      DATABASE_URL: 'postgresql://pooled.example/lms',
+    };
+    const on = jest.fn();
+    const Pool = jest.fn(() => ({
+      connect: jest.fn().mockResolvedValue({
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+        release: jest.fn(),
+      }),
+      on,
+    }));
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    jest.doMock('pg', () => ({ Pool }));
+
+    const { queryLMS } = await import('@/lib/lms-db');
+    await queryLMS('SELECT 1');
+    const errorListener = on.mock.calls.find(([event]) => event === 'error')?.[1];
+    expect(errorListener).toEqual(expect.any(Function));
+
+    errorListener(new Error('postgresql://user:secret@private-host/database'));
+    expect(log).toHaveBeenCalledWith('Unexpected LMS database pool error');
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining('secret'));
+    expect(exit).not.toHaveBeenCalled();
+
+    log.mockRestore();
+    exit.mockRestore();
   });
 
   it('fails fast when DATABASE_URL is absent', async () => {
@@ -138,12 +172,54 @@ describe('LMS database routing', () => {
       query: jest.fn().mockRejectedValue(new Error('read failed')),
       release,
     });
-    const Pool = jest.fn(() => ({ connect }));
+    const Pool = jest.fn(() => ({ connect, on: jest.fn() }));
     jest.doMock('pg', () => ({ Pool }));
     const { queryLMS } = await import('@/lib/lms-db');
 
     await expect(queryLMS('SELECT 1')).rejects.toThrow('read failed');
     expect(release).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('auxiliary database routing', () => {
+  const originalEnv = process.env;
+
+  afterEach(() => {
+    process.env = originalEnv;
+    jest.resetModules();
+    jest.dontMock('pg');
+  });
+
+  it('registers a safe idle error handler without exposing details or exiting', async () => {
+    process.env = {
+      ...originalEnv,
+      AUX_POSTGRES_URL: 'postgresql://pooled.example/aux',
+    };
+    const release = jest.fn();
+    const connect = jest.fn().mockResolvedValue({
+      query: jest.fn().mockResolvedValue({ rows: [] }),
+      release,
+    });
+    const on = jest.fn();
+    const Pool = jest.fn(() => ({ connect, on }));
+    const log = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+    const exit = jest.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    jest.doMock('pg', () => ({ Pool }));
+
+    const { queryAux } = await import('@/lib/aux-db');
+    await expect(queryAux('SELECT 1')).resolves.toEqual([]);
+    expect(Pool).toHaveBeenCalledWith(expect.objectContaining({ max: 2 }));
+    expect(on).toHaveBeenCalledWith('error', expect.any(Function));
+
+    const errorListener = on.mock.calls.find(([event]) => event === 'error')?.[1];
+    errorListener(new Error('postgresql://user:secret@private-host/database'));
+    expect(log).toHaveBeenCalledWith('Unexpected auxiliary database pool error');
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining('secret'));
+    expect(exit).not.toHaveBeenCalled();
+    expect(release).toHaveBeenCalledTimes(1);
+
+    log.mockRestore();
+    exit.mockRestore();
   });
 });
 
@@ -275,48 +351,58 @@ describe('request middleware', () => {
   const request = (pathname: string) => ({ nextUrl: { pathname }, url: `https://lms.example${pathname}` }) as any;
 
   it('exempts only the cron reset endpoint before token lookup', async () => {
-    const { middleware } = await import('../../middleware');
-    await expect(middleware(request('/api/cron/reset'))).resolves.toEqual({ type: 'next' });
+    const { proxy } = await import('../../proxy');
+    await expect(proxy(request('/api/cron/reset'))).resolves.toEqual({ type: 'next' });
     expect(getToken).not.toHaveBeenCalled();
   });
 
   it.each(['/api/auth/signin', '/_next/static/a.js', '/favicon.ico', '/images/logo.png', '/icons/x.svg', '/file.svg'])
   ('allows infrastructure/public asset path %s', async pathname => {
-    const { middleware } = await import('../../middleware');
+    const { proxy } = await import('../../proxy');
     getToken.mockResolvedValue(null);
-    await expect(middleware(request(pathname))).resolves.toEqual({ type: 'next' });
+    await expect(proxy(request(pathname))).resolves.toEqual({ type: 'next' });
   });
 
   it('redirects an expired token and deletes all session cookies', async () => {
-    const { middleware } = await import('../../middleware');
+    const { proxy } = await import('../../proxy');
     getToken.mockResolvedValue({ exp: 1 });
-    const response = await middleware(request('/course')) as any;
+    const response = await proxy(request('/course')) as any;
     expect(response.url).toBe('https://lms.example/login');
     expect(response.cookies.delete).toHaveBeenCalledTimes(4);
   });
 
   it('redirects authenticated users away from each public route', async () => {
-    const { middleware } = await import('../../middleware');
+    const { proxy } = await import('../../proxy');
     getToken.mockResolvedValue({ exp: Math.floor(Date.now() / 1000) + 60 });
-    await expect(middleware(request('/login'))).resolves.toMatchObject({ url: 'https://lms.example/dashboard' });
-    await expect(middleware(request('/auth/help'))).resolves.toMatchObject({ url: 'https://lms.example/dashboard' });
+    await expect(proxy(request('/login'))).resolves.toMatchObject({ url: 'https://lms.example/dashboard' });
+    await expect(proxy(request('/auth/help'))).resolves.toMatchObject({ url: 'https://lms.example/dashboard' });
   });
 
   it('allows authenticated private paths with missing or valid expiry', async () => {
-    const { middleware } = await import('../../middleware');
+    const { proxy } = await import('../../proxy');
     getToken.mockResolvedValue({});
-    await expect(middleware(request('/course'))).resolves.toEqual({ type: 'next' });
+    await expect(proxy(request('/course'))).resolves.toEqual({ type: 'next' });
     getToken.mockResolvedValue({ exp: Math.floor(Date.now() / 1000) + 60 });
-    await expect(middleware(request('/course'))).resolves.toEqual({ type: 'next' });
+    await expect(proxy(request('/course'))).resolves.toEqual({ type: 'next' });
   });
 
   it('redirects unauthenticated private paths with a callback and allows public paths', async () => {
-    const { middleware } = await import('../../middleware');
+    const { proxy } = await import('../../proxy');
     getToken.mockResolvedValue(null);
-    await expect(middleware(request('/course/ABC'))).resolves.toMatchObject({
+    await expect(proxy(request('/course/ABC'))).resolves.toMatchObject({
       url: 'https://lms.example/login?callbackUrl=%2Fcourse%2FABC',
     });
-    await expect(middleware(request('/login'))).resolves.toEqual({ type: 'next' });
-    await expect(middleware(request('/auth/help'))).resolves.toEqual({ type: 'next' });
+    await expect(proxy(request('/login'))).resolves.toEqual({ type: 'next' });
+    await expect(proxy(request('/auth/help'))).resolves.toEqual({ type: 'next' });
+  });
+
+  it.each(['/login-private', '/authorization'])
+  ('requires authentication for routes that only share a public-route prefix: %s', async pathname => {
+    const { proxy } = await import('../../proxy');
+    getToken.mockResolvedValue(null);
+
+    await expect(proxy(request(pathname))).resolves.toMatchObject({
+      url: `https://lms.example/login?callbackUrl=${encodeURIComponent(pathname)}`,
+    });
   });
 });

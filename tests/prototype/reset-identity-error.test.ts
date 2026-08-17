@@ -1,8 +1,8 @@
-const assertSameDatabaseTarget = jest.fn(() => {
-  throw 'non-error database identity failure';
-});
-
-jest.mock('@/lib/prototype/database-identity', () => ({ assertSameDatabaseTarget }));
+jest.mock('@/lib/prototype/database-identity', () => ({
+  assertSameDatabaseTarget: jest.fn(() => {
+    throw 'non-error database identity failure';
+  }),
+}));
 
 import { resetPrototypeDatabase } from '@/lib/prototype/reset';
 

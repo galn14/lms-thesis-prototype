@@ -13,8 +13,15 @@ export function encryptSecret(plaintext: string): string {
 }
 
 export function decryptSecret(ciphertext: string): string {
-  const bytes = CryptoJS.AES.decrypt(ciphertext, getSecret());
-  const plaintext = bytes.toString(CryptoJS.enc.Utf8);
+  const secret = getSecret();
+  let plaintext = '';
+  try {
+    // A wrong key yields random bytes, which crypto-js reports either as an
+    // empty string or by throwing "Malformed UTF-8 data".
+    plaintext = CryptoJS.AES.decrypt(ciphertext, secret).toString(CryptoJS.enc.Utf8);
+  } catch {
+    plaintext = '';
+  }
   if (!plaintext) {
     throw new Error('Failed to decrypt secret — encryption key may have changed');
   }

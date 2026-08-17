@@ -17,7 +17,7 @@ import {
   upsertAcsAssignment,
 } from '@/lib/db2/acs-repo';
 import { deleteCredential, getCredential, upsertCredential } from '@/lib/db2/admin-repo';
-import { middleware } from '@/middleware';
+import { proxy } from '@/proxy';
 import { POST as runAll } from '@/app/api/ai-grading/run-all/route';
 import { POST as runSingle } from '@/app/api/ai-grading/run-single/route';
 import { POST as detectPlagiarism } from '@/app/api/plagiarism/detect/route';
@@ -431,14 +431,14 @@ describe('cron middleware exemption', () => {
   });
 
   it('exempts exactly /api/cron/reset without reading a login token', async () => {
-    const response = await middleware(new NextRequest('http://localhost/api/cron/reset'));
+    const response = await proxy(new NextRequest('http://localhost/api/cron/reset'));
 
     expect(response.headers.get('x-middleware-next')).toBe('1');
     expect(mockGetToken).not.toHaveBeenCalled();
   });
 
   it('does not exempt a nested path that merely starts with the cron path', async () => {
-    const response = await middleware(new NextRequest('http://localhost/api/cron/reset/extra'));
+    const response = await proxy(new NextRequest('http://localhost/api/cron/reset/extra'));
 
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/login');
@@ -453,7 +453,7 @@ describe('cron middleware exemption', () => {
     '/prototype-assets/material-contoh.txt',
     '/st_louis-2.png',
   ])('allows the known public static asset %s without reading a login token', async pathname => {
-    const response = await middleware(new NextRequest(`http://localhost${pathname}`));
+    const response = await proxy(new NextRequest(`http://localhost${pathname}`));
 
     expect(response.headers.get('x-middleware-next')).toBe('1');
     expect(mockGetToken).not.toHaveBeenCalled();
@@ -465,7 +465,16 @@ describe('cron middleware exemption', () => {
     '/images-private/logo.png',
     '/prototype-assets-private/material.txt',
   ])('does not bypass authentication merely because %s looks like an asset', async pathname => {
-    const response = await middleware(new NextRequest(`http://localhost${pathname}`));
+    const response = await proxy(new NextRequest(`http://localhost${pathname}`));
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get('location')).toContain('/login');
+    expect(mockGetToken).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['/login-private', '/authorization'])
+  ('does not treat the prefix-confusable route %s as public', async pathname => {
+    const response = await proxy(new NextRequest(`http://localhost${pathname}`));
 
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toContain('/login');

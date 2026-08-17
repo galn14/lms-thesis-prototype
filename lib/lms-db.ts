@@ -17,9 +17,12 @@ function getLmsPool() {
   lmsPool = new Pool({
     connectionString,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
-    max: 5,
+    max: 2,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
+  });
+  lmsPool.on('error', () => {
+    console.error('Unexpected LMS database pool error');
   });
 
   return lmsPool;

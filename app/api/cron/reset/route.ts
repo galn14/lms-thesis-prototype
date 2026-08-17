@@ -8,6 +8,7 @@ import {
 } from '@/lib/prototype/reset';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
 function fixedLengthDigest(value: string): Buffer {
   return createHash('sha256').update(value, 'utf8').digest();

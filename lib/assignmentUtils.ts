@@ -55,19 +55,10 @@ export const getAssignmentStatus = (assignment: Assignment, isTeacher: boolean, 
         };
       }
 
-      if (userSubmission.total_score !== null) {
-        return {
-          text: `Scored: ${scoreInfo.raw}`,
-          color: 'text-purple-700',
-          bg: 'bg-purple-100',
-          iconName: 'eye',
-        };
-      }
-
       return {
-        text: 'Submitted',
-        color: 'text-blue-700',
-        bg: 'bg-blue-100',
+        text: `Scored: ${scoreInfo.raw}`,
+        color: 'text-purple-700',
+        bg: 'bg-purple-100',
         iconName: 'eye',
       };
     }

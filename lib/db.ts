@@ -8,7 +8,7 @@ if (!connectionString) {
 
 const sql = postgres(connectionString, {
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-  max: 10,
+  max: 2,
 });
 
 export default sql;

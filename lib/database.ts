@@ -8,7 +8,7 @@ if (!connectionString) {
 
 const pool = new Pool({
   connectionString,
-  max: 20,
+  max: 2,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 2000,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : undefined,
@@ -17,7 +17,6 @@ const pool = new Pool({
 // Handle pool errors
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
-  process.exit(-1);
 });
 
 // Test connection function
