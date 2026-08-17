@@ -1,3 +1,5 @@
+const os = require('node:os');
+
 const {
   createReadinessManifest,
   verifyReadinessManifest,
@@ -201,7 +203,18 @@ describe('prototype release readiness', () => {
     expect(() => assertRepositoryReleaseShape(() => ({ status: 1, stdout: '' }))).toThrow('Git readiness check');
     expect(() => assertRepositoryReleaseShape(() => ({ status: 0, stdout: ' M file\n', error: new Error('git failed') })))
       .toThrow('git failed');
-    expect(() => assertRepositoryReleaseShape()).toThrow('worktree must be clean');
+
+    // The default adapter shells out to Git in the real working directory, so
+    // it is exercised outside any repository. Asserting on this repository's
+    // own state instead would make the result depend on whether the release
+    // worktree happens to be committed.
+    const originalCwd = process.cwd();
+    process.chdir(os.tmpdir());
+    try {
+      expect(() => assertRepositoryReleaseShape()).toThrow('Git readiness check failed: status');
+    } finally {
+      process.chdir(originalCwd);
+    }
   });
 });
 

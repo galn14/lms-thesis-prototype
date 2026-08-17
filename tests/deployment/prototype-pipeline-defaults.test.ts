@@ -114,11 +114,15 @@ describe('release pipeline default adapters and absent values', () => {
   test('reads the release environment and project link from the process by default', () => {
     const originalEnvironment = process.env;
     process.env = { ...originalEnvironment, ...releaseEnvironment() };
+    // Redirect the working directory away from this repository. A valid process
+    // environment gets past local validation, so the default filesystem reader
+    // runs next and must find no project link — otherwise the default spawner
+    // would push these fixture values to the real Vercel project.
+    const cwd = jest.spyOn(process, 'cwd').mockReturnValue(os.tmpdir());
     try {
-      // A valid process environment gets past local validation, so the default
-      // filesystem reader is the adapter that reports the missing project link.
       expect(() => upsertVercelProductionEnvironment()).toThrow(/project\.json|link command/);
     } finally {
+      cwd.mockRestore();
       process.env = originalEnvironment;
     }
   });

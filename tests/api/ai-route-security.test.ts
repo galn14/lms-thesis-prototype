@@ -78,8 +78,20 @@ function malformedRequest(url: string): Request {
 }
 
 describe('AI thesis route security and request validation', () => {
+  const originalPrototypeMode = process.env.PROTOTYPE_MODE;
+
+  // These routes are asserted here in their non-prototype behaviour, so the
+  // mode is pinned off rather than inherited: the release pipeline runs the
+  // suite with PROTOTYPE_MODE=true, where every external-processing route
+  // short-circuits to 503. The guard itself is covered by its own suites.
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.PROTOTYPE_MODE = 'false';
+  });
+
+  afterAll(() => {
+    if (originalPrototypeMode === undefined) delete process.env.PROTOTYPE_MODE;
+    else process.env.PROTOTYPE_MODE = originalPrototypeMode;
   });
 
   it('rejects a student before run-single reads the ACS configuration', async () => {
