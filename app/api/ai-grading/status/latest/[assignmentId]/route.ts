@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  countGradingResultsByJobId,
+  countGradedStudentsByJobId,
   getGradingResultsByJobId,
   getLatestGradingJobByAssignment,
 } from '@/lib/db2/acs-repo';
@@ -24,7 +24,7 @@ export async function GET(
     });
   }
 
-  const items_processed = await countGradingResultsByJobId(job.id);
+  const items_processed = await countGradedStudentsByJobId(job.id);
 
   // Average AI score percentage across all results, where score and max_score are numeric.
   let averageScorePct: number | null = null;

@@ -29,6 +29,52 @@ describe('buildSyntheticDataset', () => {
     expect(dataset.gradingResults).toHaveLength(108);
   });
 
+  it('keeps a manual grading queue that still carries AI suggestions', () => {
+    // The teacher grading API lists only submissions with graded_at IS NULL, so
+    // an all-graded dataset makes that view permanently empty.
+    const pending = dataset.submissions.filter(submission => submission.graded_at === null);
+    expect(pending).toHaveLength(18);
+    expect(pending.every(submission =>
+      submission.status_id === 7
+      && submission.total_score === null
+      && submission.graded_by === null
+      && submission.feedback === null
+    )).toBe(true);
+
+    const pendingIds = new Set(pending.map(submission => submission.id));
+    expect(dataset.answers.filter(answer => pendingIds.has(answer.submission_id))
+      .every(answer => answer.points_earned === null && answer.feedback === null)).toBe(true);
+
+    // Graded submissions must remain, and every pending student keeps model
+    // output so the teacher can compare it against their own marking.
+    expect(dataset.submissions.filter(submission => submission.graded_at !== null)).toHaveLength(36);
+    for (const submission of pending) {
+      expect(dataset.gradingResults.some(result =>
+        result.assignment_id === String(submission.assignment_id)
+        && result.student_id === String(submission.student_id)
+      )).toBe(true);
+    }
+  });
+
+  it('covers every counted student so grading progress reads as complete', () => {
+    // The dashboard renders distinct graded students over total_students, so a
+    // job whose results miss a student would show partial progress.
+    for (const job of dataset.gradingJobs) {
+      const students = new Set(
+        dataset.gradingResults
+          .filter(result => result.job_id === job.id)
+          .map(result => result.student_id)
+      );
+      expect(students.size).toBe(Number(job.total_students));
+    }
+  });
+
+  it('grades the demonstration student used by the production smoke test', () => {
+    const demoStudentSubmissions = dataset.submissions.filter(submission => submission.student_id === 5);
+    expect(demoStudentSubmissions.length).toBeGreaterThan(0);
+    expect(demoStudentSubmissions.every(submission => submission.graded_at !== null)).toBe(true);
+  });
+
   it('uses published and deterministic usernames without storing a plaintext password', () => {
     expect(dataset.users.map((user) => user.user_name)).toEqual(
       expect.arrayContaining(['demo_admin', 'demo_teacher', 'demo_student'])

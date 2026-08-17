@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  countGradingResultsByJobId,
+  countGradedStudentsByJobId,
   getGradingJobById,
   getGradingResultsByJobId,
 } from '@/lib/db2/acs-repo';
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Job not found' }, { status: 404 });
   }
 
-  const count = await countGradingResultsByJobId(jobId);
+  const count = await countGradedStudentsByJobId(jobId);
   const studentGradeFeedback = await getGradingResultsByJobId(jobId);
 
   return NextResponse.json({

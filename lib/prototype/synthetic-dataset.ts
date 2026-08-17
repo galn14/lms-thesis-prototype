@@ -291,17 +291,26 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
       const secondScore = 37 + ((assignmentId * 2 + offset) % 12);
       const totalScore = firstScore + secondScore;
       const currentSubmissionId = submissionId;
+      // The teacher grading queue lists only submissions with graded_at IS NULL,
+      // so the last three of every assignment are left awaiting manual grading;
+      // otherwise that view is always empty. AI results are keyed by assignment
+      // and student rather than by grade state, so these still carry model
+      // output for the teacher to review alongside their own marking.
+      const awaitingManualGrading = offset >= 6;
       submissions.push({
         id: currentSubmissionId,
         assignment_id: assignmentId,
         student_id: studentId,
         attempt_number: 1,
         submitted_at: addDays(BASE_TIME, 44 + assignmentId),
-        status_id: 6,
-        total_score: totalScore,
-        feedback: 'Hasil demonstrasi sintetis. Tinjau ketepatan konsep dan kekuatan contoh.',
-        graded_by: teacherId,
-        graded_at: addDays(BASE_TIME, 60 + assignmentId),
+        // 6 = GRADED, 7 = SUBMITTED in the seeded SUBMISSION_STATUS enumeration.
+        status_id: awaitingManualGrading ? 7 : 6,
+        total_score: awaitingManualGrading ? null : totalScore,
+        feedback: awaitingManualGrading
+          ? null
+          : 'Hasil demonstrasi sintetis. Tinjau ketepatan konsep dan kekuatan contoh.',
+        graded_by: awaitingManualGrading ? null : teacherId,
+        graded_at: awaitingManualGrading ? null : addDays(BASE_TIME, 60 + assignmentId),
       });
 
       for (let questionNumber = 1; questionNumber <= 2; questionNumber += 1) {
@@ -312,8 +321,12 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
           submission_id: currentSubmissionId,
           question_id: questionId,
           answer_text: studentAnswer(String(course.course_name), studentNumber, questionNumber),
-          points_earned: score,
-          feedback: 'Umpan balik sintetis: konsep relevan; tambahkan bukti yang lebih spesifik.',
+          // Per-question marks stay empty while the submission awaits manual
+          // grading; the teacher enters them from the grading view.
+          points_earned: awaitingManualGrading ? null : score,
+          feedback: awaitingManualGrading
+            ? null
+            : 'Umpan balik sintetis: konsep relevan; tambahkan bukti yang lebih spesifik.',
         });
         gradingResults.push({
           id: stableUuid(21_000_000 + assignmentId, answerId),
@@ -325,13 +338,24 @@ export function buildSyntheticDataset(passwordHash: string): SyntheticDataset {
           max_score: 50,
           qualitative_grade: score >= 45 ? 'Sangat Baik' : score >= 40 ? 'Baik' : 'Cukup',
           feedback: 'Penilaian demonstrasi sintetis berdasarkan rubrik contoh.',
-          // Serialized because node-postgres renders a JS array as a
-          // PostgreSQL array literal, which jsonb rejects. Object values such
-          // as rubric_alignment are stringified by the driver already, and
+          // Shapes follow the grading contract in
+          // prompts/grading-system-prompt.txt: citations is string[] and
+          // rubric_alignment maps a criterion to "pass"/"fail". The teacher UI
+          // renders both values directly, so an object here would crash it.
+          // citations is serialized because node-postgres renders a JS array as
+          // a PostgreSQL array literal, which jsonb rejects; objects such as
+          // rubric_alignment are stringified by the driver already, and
           // scanned_question_ids is a genuine TEXT[] that must stay an array.
-          citations: JSON.stringify([{ source: 'material-sintetis', page: questionNumber }]),
+          citations: JSON.stringify([`Materi sintetis bagian ${questionNumber}`]),
+          // Deliberately outside the low/medium/high enum: the accompanying
+          // procedure document specifies the "demo" marker so the interface
+          // shows its manual-review label, marking the score as synthetic.
           confidence: 'demo',
-          rubric_alignment: { synthetic: true, concept: score / 50 },
+          rubric_alignment: {
+            'ketepatan konsep': score >= 40 ? 'pass' : 'fail',
+            argumentasi: score >= 45 ? 'pass' : 'fail',
+            contoh: score >= 42 ? 'pass' : 'fail',
+          },
           language_detected: 'id',
         });
         answerId += 1;

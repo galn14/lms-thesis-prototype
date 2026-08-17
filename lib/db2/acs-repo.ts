@@ -328,10 +328,16 @@ export async function getGradingJobById(jobId: string) {
   return rows[0] ?? null;
 }
 
-export async function countGradingResultsByJobId(jobId: string) {
+/**
+ * Progress numerator for a grading job, reported against total_students.
+ * Counts students rather than result rows: a job stores one result per question
+ * per student, so counting rows overshoots whenever an assignment has more than
+ * one question.
+ */
+export async function countGradedStudentsByJobId(jobId: string) {
   const rows = await queryAux<{ count: string }>(
     `
-      SELECT COUNT(*)::text AS count
+      SELECT COUNT(DISTINCT student_id)::text AS count
       FROM acs_grading_results
       WHERE job_id = $1
     `,

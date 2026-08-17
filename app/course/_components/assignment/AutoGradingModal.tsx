@@ -39,7 +39,8 @@ interface GradingResult {
   max_score: number;
   qualitative_grade: string | null;
   feedback: string;
-  citations: string[];
+  // Persisted as jsonb from model output, so the shape is not guaranteed.
+  citations: unknown;
   confidence: 'low' | 'medium' | 'high';
   rubric_alignment: Record<string, string>;
   language_detected: string;
@@ -1067,6 +1068,11 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
                       <div className="border-t divide-y">
                         {studentResults.map((r, idx) => {
                           const qConf = confidenceLabel(r.confidence);
+                          // Render text only: a non-string entry would other-
+                          // wise throw and take the whole modal down.
+                          const citations = Array.isArray(r.citations)
+                            ? (r.citations as unknown[]).map(c => (typeof c === 'string' ? c : JSON.stringify(c)))
+                            : [];
                           return (
                             <div key={idx} className="px-4 py-4">
                               <div className="flex items-center justify-between mb-2">
@@ -1089,9 +1095,9 @@ export const AutoGradingModal = ({ assignment, courseCode, isOpen, onClose, onRu
                               </div>
 
                               {/* Citations */}
-                              {r.citations?.length > 0 && (
+                              {citations.length > 0 && (
                                 <div className="mt-2 flex flex-wrap gap-1">
-                                  {r.citations.map((c, i) => (
+                                  {citations.map((c, i) => (
                                     <span key={i} className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
                                       📄 {c}
                                     </span>
