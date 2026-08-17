@@ -176,10 +176,16 @@ describe('applyAuxiliaryMigrations', () => {
     const previous = {
       DATABASE_URL: process.env.DATABASE_URL,
       DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED,
+      AUX_POSTGRES_URL: process.env.AUX_POSTGRES_URL,
       PROTOTYPE_INSTALLATION_ID: process.env.PROTOTYPE_INSTALLATION_ID,
     };
+    // Every connection variable the migrator reads is pinned, including
+    // AUX_POSTGRES_URL: the release pipeline runs this suite with the real
+    // pooled URL set, which would otherwise fail the consistency check
+    // against the override below.
     process.env.DATABASE_URL = 'postgresql://prototype.invalid/database';
     process.env.DATABASE_URL_UNPOOLED = 'postgresql://prototype.invalid/database';
+    process.env.AUX_POSTGRES_URL = 'postgresql://prototype.invalid/database';
     process.env.PROTOTYPE_INSTALLATION_ID = installationId;
     const coreClient = createClient();
     const client = {
