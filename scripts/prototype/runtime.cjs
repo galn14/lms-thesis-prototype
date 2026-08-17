@@ -112,7 +112,13 @@ function parseJsonOutput(result, label) {
 function createDeploymentAdapters(environment, { run = spawnSync, request = global.fetch } = {}) {
   const cli = resolveVercelCli();
   const cliEnvironment = vercelProcessEnvironment(environment);
+  const productionUrl = environment.NEXTAUTH_URL;
   let manifest;
+  const inspectProductionId = () => {
+    const result = run(process.execPath, [cli, 'inspect', productionUrl, '--json'], { cwd: process.cwd(), env: cliEnvironment, encoding: 'utf8', stdio: 'pipe' });
+    if (result.status !== 0) return null;
+    return parseJsonOutput(result, 'Vercel production inspection').id ?? null;
+  };
   return {
     async verifyReadiness() {
       manifest = JSON.parse(readFileSync(path.join(process.cwd(), MANIFEST_FILE), 'utf8'));
@@ -122,15 +128,15 @@ function createDeploymentAdapters(environment, { run = spawnSync, request = glob
       const result = verifyReadinessManifest(manifest, current, environment);
       if (!result.valid) throw new Error(`Prototype is not deployment-ready:\n- ${result.errors.join('\n- ')}`);
     },
-    async currentProduction() {
-      const result = run(process.execPath, [cli, 'inspect', environment.NEXTAUTH_URL, '--json'], { cwd: process.cwd(), env: cliEnvironment, encoding: 'utf8', stdio: 'pipe' });
-      if (result.status !== 0) return null;
-      return parseJsonOutput(result, 'Vercel production inspection').id ?? null;
-    },
+    async currentProduction() { return inspectProductionId(); },
     async deployProduction() {
-      return parseJsonOutput(run(process.execPath, [cli, 'deploy', '--prod', '--yes', '--json'], {
+      const deployment = parseJsonOutput(run(process.execPath, [cli, 'deploy', '--prod', '--yes', '--json'], {
         cwd: process.cwd(), env: cliEnvironment, encoding: 'utf8', stdio: 'pipe',
       }), 'Vercel Production deployment');
+      // The pinned CLI's deploy payload carries no hostname, and NextAuth is
+      // configured for NEXTAUTH_URL, so the smoke test targets that production
+      // alias rather than the throwaway per-deployment hostname.
+      return { id: deployment.id ?? deployment.uid ?? inspectProductionId(), url: productionUrl };
     },
     async smokeTest(deployment) { return productionSmokeTest(deployment, environment, request); },
     async migrationsCompatible() { return (await databaseMarker(environment)).schemaVersion === manifest.database.schemaVersion; },

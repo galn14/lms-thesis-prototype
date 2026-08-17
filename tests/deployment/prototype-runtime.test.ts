@@ -326,14 +326,29 @@ describe('prototype release runtime adapters', () => {
     });
 
     test('deploys to production and fails closed on unusable CLI output', async () => {
-      const deployed = jest.fn(() => ({ status: 0, stdout: '{"id":"dpl_new","url":"prototype.vercel.app"}' }));
+      // The deploy payload carries no hostname, so the adapter reports the
+      // NEXTAUTH_URL production alias for the smoke test to target.
+      const deployed = jest.fn(() => ({ status: 0, stdout: '{"id":"dpl_new"}' }));
       await expect(deploymentAdapters(deployed as unknown as jest.Mock).deployProduction())
-        .resolves.toEqual({ id: 'dpl_new', url: 'prototype.vercel.app' });
+        .resolves.toEqual({ id: 'dpl_new', url: 'https://prototype.vercel.app' });
       expect(deployed).toHaveBeenCalledWith(
         process.execPath,
         ['/repo/node_modules/vercel/dist/index.js', 'deploy', '--prod', '--yes', '--json'],
         expect.objectContaining({ stdio: 'pipe' }),
       );
+
+      // A payload without an identifier falls back to inspecting the alias.
+      const idless = jest.fn((_command: string, args: string[]) => args.includes('inspect')
+        ? ({ status: 0, stdout: '{"id":"dpl_inspected"}' })
+        : ({ status: 0, stdout: '{}' }));
+      await expect(deploymentAdapters(idless as unknown as jest.Mock).deployProduction())
+        .resolves.toEqual({ id: 'dpl_inspected', url: 'https://prototype.vercel.app' });
+
+      const unresolvable = jest.fn((_command: string, args: string[]) => args.includes('inspect')
+        ? ({ status: 1, stdout: '' })
+        : ({ status: 0, stdout: '{"uid":"dpl_uid"}' }));
+      await expect(deploymentAdapters(unresolvable as unknown as jest.Mock).deployProduction())
+        .resolves.toEqual({ id: 'dpl_uid', url: 'https://prototype.vercel.app' });
 
       const invalid = jest.fn(() => ({ status: 0, stdout: 'not-json' }));
       await expect(deploymentAdapters(invalid as unknown as jest.Mock).deployProduction())
